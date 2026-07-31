@@ -85,7 +85,9 @@
   .btn-secondary { background: var(--card); color: var(--secondary); border: 1.5px solid var(--secondary); }
   .btn-text { background: transparent; color: var(--muted); padding: 6px 8px; }
   .btn-danger { background: transparent; color: #C0392B; padding: 4px 8px; font-size: 13px; }
+  .btn-link { background: transparent; color: var(--secondary); padding: 4px 8px; font-size: 13px; }
   .row { display: flex; gap: 10px; }
+  .card-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
   .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
   .day-group { margin-bottom: 20px; }
   .day-label { font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 15px; color: var(--secondary); margin-bottom: 8px; }
@@ -97,15 +99,16 @@
   .ingredient-row-display { display: flex; justify-content: space-between; padding: 3px 0; }
   .tag-chip { display: inline-block; background: var(--bg); border: 1px solid var(--border); border-radius: 12px; padding: 1px 8px; font-size: 12px; margin-left: 4px; }
   .checkbox-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; }
-  .checkbox-row input { width: auto; margin: 0; }
+  .checkbox-row input[type=checkbox] { width: auto; margin: 0; }
   .checkbox-row label { text-transform: none; font-size: 14px; color: var(--text); margin: 0; flex: 1; }
-  .qty-input { width: 70px !important; margin: 0 !important; padding: 6px 8px !important; display: none; }
+  .qty-input { width: 80px !important; margin: 0 !important; padding: 6px 8px !important; display: none; }
   .ingredient-row {
     border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 10px; background: var(--bg);
   }
   .ingredient-row-top { display: flex; gap: 8px; }
   .ingredient-row-top input, .ingredient-row-top select { margin-bottom: 8px; }
   .remove-row-btn { background: none; border: none; color: #C0392B; cursor: pointer; font-size: 18px; padding: 4px 8px; }
+  .base-qty-wrap { max-width: 140px; }
   .modal-overlay {
     display: none; position: fixed; inset: 0; background: rgba(26,26,46,0.4);
     z-index: 100; align-items: flex-end; justify-content: center;
@@ -191,10 +194,10 @@
   </div>
 </main>
 
-<!-- ADD MEAL MODAL -->
+<!-- ADD/EDIT MEAL MODAL -->
 <div class="modal-overlay" id="mealModalOverlay">
   <div class="modal">
-    <h2>Add Meal</h2>
+    <h2 id="mealModalTitle">Add Meal</h2>
 
     <div class="row">
       <div style="flex:1;">
@@ -247,15 +250,15 @@
 
     <div class="row" style="margin-top:20px;">
       <button class="btn-text" onclick="window.closeMealModal()">Cancel</button>
-      <button class="btn-primary" style="flex:1;" onclick="window.saveMeal()">Save Meal</button>
+      <button class="btn-primary" id="mealSaveBtn" style="flex:1;" onclick="window.saveMeal()">Save Meal</button>
     </div>
   </div>
 </div>
 
-<!-- ADD SUPPLY MODAL -->
+<!-- ADD/EDIT SUPPLY MODAL -->
 <div class="modal-overlay" id="supplyModalOverlay">
   <div class="modal">
-    <h2>Add Supply</h2>
+    <h2 id="supplyModalTitle">Add Supply</h2>
     <label>Item Name</label>
     <input type="text" id="supplyName" placeholder="Toilet Paper">
 
@@ -270,13 +273,18 @@
       <option value="Other" selected>Other</option>
     </select>
 
+    <div class="base-qty-wrap" id="supplyBaseQtyWrap">
+      <label>Quantity</label>
+      <input type="number" step="0.1" id="supplyBaseQty" value="1">
+    </div>
+
+    <label>Who's Bringing It (optional)</label>
+    <div id="supplyBringerPicker"></div>
+
     <div class="checkbox-row">
       <input type="checkbox" id="supplyNeedsPurchase">
       <label for="supplyNeedsPurchase">Needs to be purchased</label>
     </div>
-
-    <label>Who's Bringing It</label>
-    <div id="supplyBringerPicker"></div>
 
     <label style="margin-top:10px;">Notes</label>
     <textarea id="supplyNotes" placeholder="Optional notes..."></textarea>
@@ -285,7 +293,7 @@
 
     <div class="row" style="margin-top:20px;">
       <button class="btn-text" onclick="window.closeSupplyModal()">Cancel</button>
-      <button class="btn-primary" style="flex:1;" onclick="window.saveSupply()">Save Supply</button>
+      <button class="btn-primary" id="supplySaveBtn" style="flex:1;" onclick="window.saveSupply()">Save Supply</button>
     </div>
   </div>
 </div>
@@ -316,6 +324,8 @@
   let attendeesById = {};
   let meals = [];
   let items = [];           // all items (meal-ingredient + supply) for this trip
+  let editingMealId = null;
+  let editingSupplyId = null;
 
   if (!tripId) {
     window.location.href = 'index.html';
@@ -420,11 +430,78 @@
     renderShoppingList();
   }
 
+  // ============================================================
+  // Shared people-picker + quantity logic (used by both meal
+  // ingredient rows and the supply form)
+  // ============================================================
+
+  // Builds a row per attendee with a checkbox + a per-person qty
+  // input (hidden until 2+ people are checked). prefill lets us
+  // reopen this in "edit" mode with existing tags/quantities.
+  function buildPeoplePickerHtml(prefix, checkedIds, qtyValues) {
+    checkedIds = checkedIds || [];
+    qtyValues = qtyValues || {};
+    return attendees.map(function (p) {
+      const isChecked = checkedIds.includes(p.id);
+      const qtyVal = qtyValues[p.id] != null ? qtyValues[p.id] : 1;
+      return `
+        <div class="checkbox-row">
+          <input type="checkbox" class="${prefix}-person-cb" data-person-id="${p.id}"
+                 ${isChecked ? 'checked' : ''} onchange="window.recalcQtyMode(this)">
+          <label style="flex:0 0 auto; min-width:120px;">${escapeHtml(p.name)}</label>
+          <input type="number" step="0.1" class="qty-input ${prefix}-person-qty" data-person-id="${p.id}" value="${qtyVal}">
+        </div>
+      `;
+    }).join('');
+  }
+
+  // Recalculates whether we're in "single quantity" mode (0-1 people
+  // tagged, use the base quantity field) or "split" mode (2+ people
+  // tagged, show a quantity field per tagged person). Call this
+  // whenever a person checkbox changes.
+  window.recalcQtyMode = function (checkboxEl) {
+    const scope = checkboxEl.closest('.ingredient-row') || document;
+    const prefix = checkboxEl.classList.contains('ing-person-cb') ? 'ing' : 'supply';
+    const checked = scope.querySelectorAll(`.${prefix}-person-cb:checked`);
+    const baseQtyWrap = scope.querySelector('.base-qty-wrap') || document.getElementById('supplyBaseQtyWrap');
+
+    scope.querySelectorAll(`.${prefix}-person-qty`).forEach(function (inp) { inp.style.display = 'none'; });
+
+    if (checked.length >= 2) {
+      if (baseQtyWrap) baseQtyWrap.classList.add('hidden');
+      checked.forEach(function (cb) {
+        const qtyInput = scope.querySelector(`.${prefix}-person-qty[data-person-id="${cb.dataset.personId}"]`);
+        if (qtyInput) qtyInput.style.display = 'inline-block';
+      });
+    } else {
+      if (baseQtyWrap) baseQtyWrap.classList.remove('hidden');
+    }
+  };
+
+  // Reads the current state of a people-picker + base qty field back
+  // into { taggedPeople, quantity }. quantity is a plain number if
+  // 0-1 people are tagged, or a {personId: qty} map if 2+.
+  function readQtyAndTags(scope, prefix, baseQtyEl) {
+    const checked = Array.from(scope.querySelectorAll(`.${prefix}-person-cb:checked`));
+    const taggedPeople = checked.map(function (cb) { return cb.dataset.personId; });
+    let quantity;
+    if (taggedPeople.length >= 2) {
+      quantity = {};
+      taggedPeople.forEach(function (pid) {
+        const qtyInput = scope.querySelector(`.${prefix}-person-qty[data-person-id="${pid}"]`);
+        quantity[pid] = parseFloat(qtyInput.value) || 1;
+      });
+    } else {
+      quantity = parseFloat(baseQtyEl.value) || 1;
+    }
+    return { taggedPeople: taggedPeople, quantity: quantity };
+  }
+
   // ---------- Meals ----------
   function populateMealDayOptions() {
     const sel = document.getElementById('mealDay');
     sel.innerHTML = '';
-    dateRange(trip.startDate, trip.endDate).forEach(d => {
+    dateRange(trip.startDate, trip.endDate).forEach(function (d) {
       const opt = document.createElement('option');
       opt.value = d;
       opt.textContent = formatDayLabel(d);
@@ -440,13 +517,13 @@
     emptyEl.classList.add('hidden');
 
     const byDay = {};
-    meals.forEach(m => { (byDay[m.day] = byDay[m.day] || []).push(m); });
+    meals.forEach(function (m) { (byDay[m.day] = byDay[m.day] || []).push(m); });
 
-    Object.keys(byDay).sort().forEach(day => {
+    Object.keys(byDay).sort().forEach(function (day) {
       const group = document.createElement('div');
       group.className = 'day-group';
       group.innerHTML = `<div class="day-label">${formatDayLabel(day)}</div>`;
-      byDay[day].forEach(meal => group.appendChild(buildMealCard(meal)));
+      byDay[day].forEach(function (meal) { group.appendChild(buildMealCard(meal)); });
       listEl.appendChild(group);
     });
   }
@@ -454,21 +531,22 @@
   function buildMealCard(meal) {
     const card = document.createElement('div');
     card.className = 'card meal-card';
-    const mealIngredients = items.filter(i => i.type === 'meal-ingredient' && i.parentMealId === meal.id);
+    const mealIngredients = items.filter(function (i) { return i.type === 'meal-ingredient' && i.parentMealId === meal.id; });
 
     let bodyHtml = '';
     if (meal.locationType === 'home') {
-      const cookNames = (meal.cooks || []).map(pid => attendeesById[pid]?.name).filter(Boolean).join(', ');
+      const cookNames = (meal.cooks || []).map(function (pid) { return attendeesById[pid] ? attendeesById[pid].name : null; }).filter(Boolean).join(', ');
       bodyHtml = `
         <div class="meal-slot">${meal.slot} · Home</div>
         <div class="meal-name">${escapeHtml(meal.name)}</div>
         ${cookNames ? `<div class="meal-meta">Cooking: ${escapeHtml(cookNames)}</div>` : ''}
-        ${mealIngredients.length ? `<div class="ingredient-list">${mealIngredients.map(ing => `
+        ${mealIngredients.length ? `<div class="ingredient-list">${mealIngredients.map(function (ing) {
+          return `
           <div class="ingredient-row-display">
             <span>${escapeHtml(ing.name)} ${formatQty(ing)}</span>
             ${ing.needsPurchase ? '<span class="tag-chip">To buy</span>' : ''}
           </div>
-        `).join('')}</div>` : ''}
+        `; }).join('')}</div>` : ''}
       `;
     } else {
       bodyHtml = `
@@ -480,47 +558,90 @@
     }
 
     card.innerHTML = `<div style="flex:1;">${bodyHtml}</div>`;
+    const actions = document.createElement('div');
+    actions.className = 'card-actions';
+    const editBtn = document.createElement('button');
+    editBtn.className = 'btn-link';
+    editBtn.textContent = 'Edit';
+    editBtn.onclick = function () { window.openMealModal(meal.id); };
     const delBtn = document.createElement('button');
     delBtn.className = 'btn-danger';
     delBtn.textContent = 'Delete';
-    delBtn.onclick = () => window.deleteMeal(meal.id);
-    card.appendChild(delBtn);
+    delBtn.onclick = function () { window.deleteMeal(meal.id); };
+    actions.appendChild(editBtn);
+    actions.appendChild(delBtn);
+    card.appendChild(actions);
     return card;
   }
 
   function formatQty(item) {
     if (item.quantity == null) return '';
     if (typeof item.quantity === 'number') return `(${item.quantity})`;
-    const parts = Object.entries(item.quantity).map(([pid, q]) => `${attendeesById[pid]?.name || '?'}: ${q}`);
+    const parts = Object.entries(item.quantity).map(function (entry) {
+      const pid = entry[0], q = entry[1];
+      return `${attendeesById[pid] ? attendeesById[pid].name : '?'}: ${q}`;
+    });
     return `(${parts.join(', ')})`;
   }
 
   window.deleteMeal = async function (mealId) {
     if (!confirm('Delete this meal and its ingredients?')) return;
-    const mealItems = items.filter(i => i.type === 'meal-ingredient' && i.parentMealId === mealId);
-    await Promise.all(mealItems.map(i => deleteDoc(doc(db, 'trips', tripId, 'items', i.id))));
+    const mealItems = items.filter(function (i) { return i.type === 'meal-ingredient' && i.parentMealId === mealId; });
+    await Promise.all(mealItems.map(function (i) { return deleteDoc(doc(db, 'trips', tripId, 'items', i.id)); }));
     await deleteDoc(doc(db, 'trips', tripId, 'meals', mealId));
     await loadMeals();
     await loadItems();
     renderAll();
   };
 
-  // ---------- Add Meal Modal ----------
-  window.openMealModal = function () {
-    document.getElementById('mealEntreeName').value = '';
-    document.getElementById('mealRestaurantName').value = '';
-    document.getElementById('mealAddress').value = '';
-    document.getElementById('mealOutNotes').value = '';
+  // ---------- Add/Edit Meal Modal ----------
+  window.openMealModal = function (mealId) {
+    editingMealId = mealId || null;
     document.getElementById('mealError').classList.add('hidden');
-    document.getElementById('locHome').checked = true;
-    window.toggleMealLocation();
-    renderMealCooksPicker();
     document.getElementById('ingredientRowsContainer').innerHTML = '';
-    window.addIngredientRow();
+
+    if (editingMealId) {
+      const meal = meals.find(function (m) { return m.id === editingMealId; });
+      document.getElementById('mealModalTitle').textContent = 'Edit Meal';
+      document.getElementById('mealSaveBtn').textContent = 'Update Meal';
+      document.getElementById('mealDay').value = meal.day;
+      document.getElementById('mealSlot').value = meal.slot;
+      document.getElementById('locHome').checked = meal.locationType === 'home';
+      document.getElementById('locOut').checked = meal.locationType === 'out';
+      window.toggleMealLocation();
+
+      if (meal.locationType === 'home') {
+        document.getElementById('mealEntreeName').value = meal.name || '';
+        renderMealCooksPicker(meal.cooks || []);
+        const mealIngredients = items.filter(function (i) { return i.type === 'meal-ingredient' && i.parentMealId === editingMealId; });
+        if (mealIngredients.length === 0) {
+          window.addIngredientRow();
+        } else {
+          mealIngredients.forEach(function (ing) { window.addIngredientRow(ing); });
+        }
+      } else {
+        document.getElementById('mealRestaurantName').value = meal.name || '';
+        document.getElementById('mealAddress').value = meal.address || '';
+        document.getElementById('mealOutNotes').value = meal.notes || '';
+      }
+    } else {
+      document.getElementById('mealModalTitle').textContent = 'Add Meal';
+      document.getElementById('mealSaveBtn').textContent = 'Save Meal';
+      document.getElementById('mealEntreeName').value = '';
+      document.getElementById('mealRestaurantName').value = '';
+      document.getElementById('mealAddress').value = '';
+      document.getElementById('mealOutNotes').value = '';
+      document.getElementById('locHome').checked = true;
+      window.toggleMealLocation();
+      renderMealCooksPicker([]);
+      window.addIngredientRow();
+    }
+
     document.getElementById('mealModalOverlay').classList.add('open');
   };
   window.closeMealModal = function () {
     document.getElementById('mealModalOverlay').classList.remove('open');
+    editingMealId = null;
   };
   window.toggleMealLocation = function () {
     const isHome = document.getElementById('locHome').checked;
@@ -528,60 +649,61 @@
     document.getElementById('mealOutFields').classList.toggle('hidden', isHome);
   };
 
-  function renderMealCooksPicker() {
+  function renderMealCooksPicker(checkedCookIds) {
     const el = document.getElementById('mealCooksPicker');
-    el.innerHTML = attendees.map(p => `
+    el.innerHTML = attendees.map(function (p) {
+      return `
       <div class="checkbox-row">
-        <input type="checkbox" class="meal-cook-cb" value="${p.id}" id="cook_${p.id}">
+        <input type="checkbox" class="meal-cook-cb" value="${p.id}" id="cook_${p.id}" ${checkedCookIds.includes(p.id) ? 'checked' : ''}>
         <label for="cook_${p.id}">${escapeHtml(p.name)}</label>
       </div>
-    `).join('');
+    `;
+    }).join('');
   }
 
-  function buildBuyerPickerHtml(rowClassPrefix) {
-    return attendees.map(p => `
-      <div class="checkbox-row">
-        <input type="checkbox" class="${rowClassPrefix}-buyer-cb" data-person-id="${p.id}"
-               onchange="window.toggleQtyInput(this)">
-        <label style="flex:0 0 auto; min-width:120px;">${escapeHtml(p.name)}</label>
-        <input type="number" step="0.1" class="qty-input ${rowClassPrefix}-buyer-qty" data-person-id="${p.id}" placeholder="Qty" value="1">
-      </div>
-    `).join('');
-  }
-
-  window.toggleQtyInput = function (checkbox) {
-    const row = checkbox.closest('.checkbox-row');
-    const qtyInput = row.querySelector('input[type=number]');
-    qtyInput.style.display = checkbox.checked ? 'inline-block' : 'none';
-  };
-
-  window.addIngredientRow = function () {
+  window.addIngredientRow = function (prefill) {
     const container = document.getElementById('ingredientRowsContainer');
     const row = document.createElement('div');
     row.className = 'ingredient-row';
+
+    const name = (prefill && prefill.name) || '';
+    const category = (prefill && prefill.category) || 'Food';
+    const needsPurchase = (prefill && prefill.needsPurchase) || false;
+    const taggedPeople = (prefill && prefill.taggedPeople) || [];
+    let baseQty = 1;
+    let qtyValues = {};
+    if (prefill) {
+      if (typeof prefill.quantity === 'number') {
+        baseQty = prefill.quantity;
+      } else if (prefill.quantity && typeof prefill.quantity === 'object') {
+        qtyValues = prefill.quantity;
+      }
+    }
+
     row.innerHTML = `
       <div class="ingredient-row-top">
-        <input type="text" class="ing-name" placeholder="Ingredient name" style="flex:2;">
+        <input type="text" class="ing-name" placeholder="Ingredient name" style="flex:2;" value="${escapeHtml(name)}">
         <select class="ing-category" style="flex:1;">
-          ${CATEGORIES.map(c => `<option value="${c}"${c === 'Food' ? ' selected' : ''}>${c}</option>`).join('')}
+          ${CATEGORIES.map(function (c) { return `<option value="${c}"${c === category ? ' selected' : ''}>${c}</option>`; }).join('')}
         </select>
         <button type="button" class="remove-row-btn" onclick="this.closest('.ingredient-row').remove()">✕</button>
       </div>
-      <div class="checkbox-row">
-        <input type="checkbox" class="ing-needs-purchase" onchange="window.toggleBuyerSection(this)">
-        <label>Needs to be purchased</label>
+      <div class="base-qty-wrap">
+        <label>Quantity</label>
+        <input type="number" step="0.1" class="ing-base-qty" value="${baseQty}">
       </div>
-      <div class="ing-buyer-section hidden">
-        <label style="margin-top:8px;">Who's Buying</label>
-        ${buildBuyerPickerHtml('ing')}
+      <label>Tag People (optional — who's responsible)</label>
+      <div class="ing-people-picker">${buildPeoplePickerHtml('ing', taggedPeople, qtyValues)}</div>
+      <div class="checkbox-row">
+        <input type="checkbox" class="ing-needs-purchase" ${needsPurchase ? 'checked' : ''}>
+        <label>Needs to be purchased</label>
       </div>
     `;
     container.appendChild(row);
-  };
 
-  window.toggleBuyerSection = function (checkbox) {
-    const section = checkbox.closest('.ingredient-row').querySelector('.ing-buyer-section');
-    section.classList.toggle('hidden', !checkbox.checked);
+    // Apply correct single/split qty mode based on prefilled tags
+    const firstCb = row.querySelector('.ing-person-cb');
+    if (firstCb) window.recalcQtyMode(firstCb);
   };
 
   window.saveMeal = async function () {
@@ -595,18 +717,43 @@
     if (isHome) {
       const name = document.getElementById('mealEntreeName').value.trim();
       if (!name) { errEl.textContent = 'Please enter an entree name.'; errEl.classList.remove('hidden'); return; }
-      const cooks = Array.from(document.querySelectorAll('.meal-cook-cb:checked')).map(cb => cb.value);
-      mealData = { day, slot, locationType: 'home', name, cooks, notes: '' };
+      const cooks = Array.from(document.querySelectorAll('.meal-cook-cb:checked')).map(function (cb) { return cb.value; });
+      mealData = { day: day, slot: slot, locationType: 'home', name: name, cooks: cooks, notes: '' };
     } else {
       const name = document.getElementById('mealRestaurantName').value.trim();
       if (!name) { errEl.textContent = 'Please enter a restaurant name.'; errEl.classList.remove('hidden'); return; }
       const address = document.getElementById('mealAddress').value.trim();
       const notes = document.getElementById('mealOutNotes').value.trim();
-      mealData = { day, slot, locationType: 'out', name, address, notes };
+      mealData = { day: day, slot: slot, locationType: 'out', name: name, address: address, notes: notes };
     }
-    mealData.createdAt = serverTimestamp();
 
-    const mealRef = await addDoc(collection(db, 'trips', tripId, 'meals'), mealData);
+    // Validate ingredient rows before writing anything
+    if (isHome) {
+      const rows = document.querySelectorAll('#ingredientRowsContainer .ingredient-row');
+      for (const row of rows) {
+        const name = row.querySelector('.ing-name').value.trim();
+        if (!name) continue;
+        const needsPurchase = row.querySelector('.ing-needs-purchase').checked;
+        const taggedCount = row.querySelectorAll('.ing-person-cb:checked').length;
+        if (needsPurchase && taggedCount === 0) {
+          errEl.textContent = `Tag at least one person for "${name}" so it shows up on someone's shopping list.`;
+          errEl.classList.remove('hidden');
+          return;
+        }
+      }
+    }
+
+    let mealId;
+    if (editingMealId) {
+      await updateDoc(doc(db, 'trips', tripId, 'meals', editingMealId), mealData);
+      mealId = editingMealId;
+      const oldItems = items.filter(function (i) { return i.type === 'meal-ingredient' && i.parentMealId === mealId; });
+      await Promise.all(oldItems.map(function (i) { return deleteDoc(doc(db, 'trips', tripId, 'items', i.id)); }));
+    } else {
+      mealData.createdAt = serverTimestamp();
+      const mealRef = await addDoc(collection(db, 'trips', tripId, 'meals'), mealData);
+      mealId = mealRef.id;
+    }
 
     if (isHome) {
       const rows = document.querySelectorAll('#ingredientRowsContainer .ingredient-row');
@@ -615,25 +762,12 @@
         if (!name) continue;
         const category = row.querySelector('.ing-category').value;
         const needsPurchase = row.querySelector('.ing-needs-purchase').checked;
-        let taggedPeople = [];
-        let quantity = 1;
-        if (needsPurchase) {
-          const buyerChecks = row.querySelectorAll('.ing-buyer-cb:checked');
-          taggedPeople = Array.from(buyerChecks).map(cb => cb.dataset.personId);
-          if (taggedPeople.length === 1) {
-            const qtyInput = row.querySelector(`.ing-buyer-qty[data-person-id="${taggedPeople[0]}"]`);
-            quantity = parseFloat(qtyInput.value) || 1;
-          } else if (taggedPeople.length > 1) {
-            quantity = {};
-            taggedPeople.forEach(pid => {
-              const qtyInput = row.querySelector(`.ing-buyer-qty[data-person-id="${pid}"]`);
-              quantity[pid] = parseFloat(qtyInput.value) || 1;
-            });
-          }
-        }
+        const baseQtyEl = row.querySelector('.ing-base-qty');
+        const result = readQtyAndTags(row, 'ing', baseQtyEl);
+
         await addDoc(collection(db, 'trips', tripId, 'items'), {
-          type: 'meal-ingredient', name, category, quantity, taggedPeople,
-          needsPurchase, purchased: false, parentMealId: mealRef.id, notes: '',
+          type: 'meal-ingredient', name: name, category: category, quantity: result.quantity, taggedPeople: result.taggedPeople,
+          needsPurchase: needsPurchase, purchased: false, parentMealId: mealId, notes: '',
           createdAt: serverTimestamp()
         });
       }
@@ -649,21 +783,21 @@
   function renderSupplies() {
     const listEl = document.getElementById('suppliesList');
     const emptyEl = document.getElementById('suppliesEmpty');
-    const supplies = items.filter(i => i.type === 'supply');
+    const supplies = items.filter(function (i) { return i.type === 'supply'; });
     listEl.innerHTML = '';
     if (supplies.length === 0) { emptyEl.classList.remove('hidden'); return; }
     emptyEl.classList.add('hidden');
 
     const byCategory = {};
-    supplies.forEach(s => { (byCategory[s.category || 'Other'] = byCategory[s.category || 'Other'] || []).push(s); });
+    supplies.forEach(function (s) { (byCategory[s.category || 'Other'] = byCategory[s.category || 'Other'] || []).push(s); });
 
-    CATEGORIES.forEach(cat => {
+    CATEGORIES.forEach(function (cat) {
       if (!byCategory[cat]) return;
       const group = document.createElement('div');
       group.className = 'category-group';
       group.innerHTML = `<div class="category-label">${cat}</div>`;
-      byCategory[cat].forEach(supply => {
-        const names = (supply.taggedPeople || []).map(pid => attendeesById[pid]?.name).filter(Boolean).join(', ');
+      byCategory[cat].forEach(function (supply) {
+        const names = (supply.taggedPeople || []).map(function (pid) { return attendeesById[pid] ? attendeesById[pid].name : null; }).filter(Boolean).join(', ');
         const card = document.createElement('div');
         card.className = 'card';
         card.style.display = 'flex';
@@ -677,11 +811,19 @@
             ${supply.notes ? `<div class="meal-meta" style="margin-top:4px;">${escapeHtml(supply.notes)}</div>` : ''}
           </div>
         `;
+        const actions = document.createElement('div');
+        actions.className = 'card-actions';
+        const editBtn = document.createElement('button');
+        editBtn.className = 'btn-link';
+        editBtn.textContent = 'Edit';
+        editBtn.onclick = function () { window.openSupplyModal(supply.id); };
         const delBtn = document.createElement('button');
         delBtn.className = 'btn-danger';
         delBtn.textContent = 'Delete';
-        delBtn.onclick = () => window.deleteSupply(supply.id);
-        card.appendChild(delBtn);
+        delBtn.onclick = function () { window.deleteSupply(supply.id); };
+        actions.appendChild(editBtn);
+        actions.appendChild(delBtn);
+        card.appendChild(actions);
         group.appendChild(card);
       });
       listEl.appendChild(group);
@@ -695,17 +837,43 @@
     renderAll();
   };
 
-  window.openSupplyModal = function () {
-    document.getElementById('supplyName').value = '';
-    document.getElementById('supplyCategory').value = 'Other';
-    document.getElementById('supplyNeedsPurchase').checked = false;
-    document.getElementById('supplyNotes').value = '';
+  window.openSupplyModal = function (itemId) {
+    editingSupplyId = itemId || null;
     document.getElementById('supplyError').classList.add('hidden');
-    document.getElementById('supplyBringerPicker').innerHTML = buildBuyerPickerHtml('supply');
+
+    if (editingSupplyId) {
+      const supply = items.find(function (i) { return i.id === editingSupplyId; });
+      document.getElementById('supplyModalTitle').textContent = 'Edit Supply';
+      document.getElementById('supplySaveBtn').textContent = 'Update Supply';
+      document.getElementById('supplyName').value = supply.name || '';
+      document.getElementById('supplyCategory').value = supply.category || 'Other';
+      document.getElementById('supplyNeedsPurchase').checked = !!supply.needsPurchase;
+      document.getElementById('supplyNotes').value = supply.notes || '';
+      let baseQty = 1, qtyValues = {};
+      if (typeof supply.quantity === 'number') baseQty = supply.quantity;
+      else if (supply.quantity && typeof supply.quantity === 'object') qtyValues = supply.quantity;
+      document.getElementById('supplyBaseQty').value = baseQty;
+      document.getElementById('supplyBringerPicker').innerHTML = buildPeoplePickerHtml('supply', supply.taggedPeople || [], qtyValues);
+    } else {
+      document.getElementById('supplyModalTitle').textContent = 'Add Supply';
+      document.getElementById('supplySaveBtn').textContent = 'Save Supply';
+      document.getElementById('supplyName').value = '';
+      document.getElementById('supplyCategory').value = 'Other';
+      document.getElementById('supplyBaseQty').value = 1;
+      document.getElementById('supplyNeedsPurchase').checked = false;
+      document.getElementById('supplyNotes').value = '';
+      document.getElementById('supplyBringerPicker').innerHTML = buildPeoplePickerHtml('supply', [], {});
+    }
+
+    const firstCb = document.querySelector('#supplyBringerPicker .supply-person-cb');
+    if (firstCb) window.recalcQtyMode(firstCb);
+    else document.getElementById('supplyBaseQtyWrap').classList.remove('hidden');
+
     document.getElementById('supplyModalOverlay').classList.add('open');
   };
   window.closeSupplyModal = function () {
     document.getElementById('supplyModalOverlay').classList.remove('open');
+    editingSupplyId = null;
   };
 
   window.saveSupply = async function () {
@@ -717,25 +885,26 @@
     const needsPurchase = document.getElementById('supplyNeedsPurchase').checked;
     const notes = document.getElementById('supplyNotes').value.trim();
 
-    const buyerChecks = document.querySelectorAll('.supply-buyer-cb:checked');
-    const taggedPeople = Array.from(buyerChecks).map(cb => cb.dataset.personId);
-    let quantity = 1;
-    if (taggedPeople.length === 1) {
-      const qtyInput = document.querySelector(`.supply-buyer-qty[data-person-id="${taggedPeople[0]}"]`);
-      quantity = parseFloat(qtyInput.value) || 1;
-    } else if (taggedPeople.length > 1) {
-      quantity = {};
-      taggedPeople.forEach(pid => {
-        const qtyInput = document.querySelector(`.supply-buyer-qty[data-person-id="${pid}"]`);
-        quantity[pid] = parseFloat(qtyInput.value) || 1;
-      });
+    const baseQtyEl = document.getElementById('supplyBaseQty');
+    const result = readQtyAndTags(document, 'supply', baseQtyEl);
+
+    if (needsPurchase && result.taggedPeople.length === 0) {
+      errEl.textContent = "Tag at least one person so this shows up on someone's shopping list.";
+      errEl.classList.remove('hidden');
+      return;
     }
 
-    await addDoc(collection(db, 'trips', tripId, 'items'), {
-      type: 'supply', name, category, quantity, taggedPeople,
-      needsPurchase, purchased: false, parentMealId: null, notes,
-      createdAt: serverTimestamp()
-    });
+    const supplyData = {
+      type: 'supply', name: name, category: category, quantity: result.quantity, taggedPeople: result.taggedPeople,
+      needsPurchase: needsPurchase, purchased: false, parentMealId: null, notes: notes
+    };
+
+    if (editingSupplyId) {
+      await updateDoc(doc(db, 'trips', tripId, 'items', editingSupplyId), supplyData);
+    } else {
+      supplyData.createdAt = serverTimestamp();
+      await addDoc(collection(db, 'trips', tripId, 'items'), supplyData);
+    }
 
     window.closeSupplyModal();
     await loadItems();
@@ -746,25 +915,25 @@
   function renderShoppingList() {
     const listEl = document.getElementById('shoppingList');
     const emptyEl = document.getElementById('shoppingEmpty');
-    const myItems = items.filter(i =>
-      i.needsPurchase && (i.taggedPeople || []).includes(currentPerson.id)
-    );
+    const myItems = items.filter(function (i) {
+      return i.needsPurchase && (i.taggedPeople || []).includes(currentPerson.id);
+    });
     listEl.innerHTML = '';
     if (myItems.length === 0) { emptyEl.classList.remove('hidden'); return; }
     emptyEl.classList.add('hidden');
 
     const byCategory = {};
-    myItems.forEach(i => { (byCategory[i.category || 'Other'] = byCategory[i.category || 'Other'] || []).push(i); });
+    myItems.forEach(function (i) { (byCategory[i.category || 'Other'] = byCategory[i.category || 'Other'] || []).push(i); });
 
-    CATEGORIES.forEach(cat => {
+    CATEGORIES.forEach(function (cat) {
       if (!byCategory[cat]) return;
       const header = document.createElement('div');
       header.className = 'category-label';
       header.textContent = cat;
       header.style.marginTop = '10px';
       listEl.appendChild(header);
-      byCategory[cat].forEach(item => {
-        const myQty = typeof item.quantity === 'number' ? item.quantity : (item.quantity?.[currentPerson.id] ?? '');
+      byCategory[cat].forEach(function (item) {
+        const myQty = typeof item.quantity === 'number' ? item.quantity : (item.quantity && item.quantity[currentPerson.id] != null ? item.quantity[currentPerson.id] : '');
         const row = document.createElement('div');
         row.className = 'shop-item' + (item.purchased ? ' purchased' : '');
         row.innerHTML = `
@@ -772,14 +941,14 @@
           <span class="shop-item-name">${escapeHtml(item.name)}</span>
           <span class="shop-item-qty">${myQty !== '' ? 'Qty: ' + myQty : ''}</span>
         `;
-        row.querySelector('input').onchange = (e) => window.togglePurchased(item.id, e.target.checked);
+        row.querySelector('input').onchange = function (e) { window.togglePurchased(item.id, e.target.checked); };
         listEl.appendChild(row);
       });
     });
   }
 
   window.togglePurchased = async function (itemId, purchased) {
-    await updateDoc(doc(db, 'trips', tripId, 'items', itemId), { purchased });
+    await updateDoc(doc(db, 'trips', tripId, 'items', itemId), { purchased: purchased });
     await loadItems();
     renderShoppingList();
     renderMeals();

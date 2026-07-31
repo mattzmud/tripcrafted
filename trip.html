@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trip — TripCrafted</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800&family=Nunito+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #F8F6F0;
+    --card: #FFFFFF;
+    --primary: #4CAF50;
+    --secondary: #7C3AED;
+    --text: #1A1A2E;
+    --muted: #6B7280;
+    --border: #E5E0D8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Nunito Sans', sans-serif;
+    padding-bottom: 60px;
+  }
+  h1, h2, h3, label, .heading { font-family: 'Nunito', sans-serif; font-weight: 800; }
+  header {
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  header .logo { font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 20px; color: var(--primary); text-decoration: none; }
+  header nav a { margin-left: 16px; color: var(--muted); text-decoration: none; font-weight: 600; font-size: 14px; }
+  main { max-width: 720px; margin: 0 auto; padding: 24px 20px; }
+  .trip-header { margin-bottom: 20px; }
+  .trip-header h2 { margin: 0 0 4px 0; font-size: 26px; }
+  .trip-header .dates { color: var(--muted); font-size: 14px; }
+  .tabs { display: flex; gap: 8px; margin-bottom: 20px; border-bottom: 1px solid var(--border); }
+  .tab-btn {
+    background: none; border: none; padding: 10px 4px; margin-right: 16px;
+    font-family: 'Nunito', sans-serif; font-weight: 700; font-size: 15px;
+    color: var(--muted); cursor: pointer; border-bottom: 3px solid transparent;
+  }
+  .tab-btn.active { color: var(--text); border-bottom-color: var(--primary); }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 18px;
+    margin-bottom: 14px;
+  }
+  input, select, textarea {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-family: 'Nunito Sans', sans-serif;
+    font-size: 15px;
+    margin-top: 6px;
+    margin-bottom: 14px;
+    background: var(--bg);
+    color: var(--text);
+  }
+  textarea { min-height: 60px; resize: vertical; }
+  label { font-size: 13px; color: var(--muted); display: block; text-transform: uppercase; letter-spacing: 0.03em; }
+  button {
+    font-family: 'Nunito', sans-serif;
+    font-weight: 700;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  .btn-primary { background: var(--primary); color: white; }
+  .btn-secondary { background: var(--card); color: var(--secondary); border: 1.5px solid var(--secondary); }
+  .btn-text { background: transparent; color: var(--muted); padding: 6px 8px; }
+  .btn-danger { background: transparent; color: #C0392B; padding: 4px 8px; font-size: 13px; }
+  .row { display: flex; gap: 10px; }
+  .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .day-group { margin-bottom: 20px; }
+  .day-label { font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 15px; color: var(--secondary); margin-bottom: 8px; }
+  .meal-card { display: flex; justify-content: space-between; align-items: flex-start; }
+  .meal-slot { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); font-weight: 700; }
+  .meal-name { font-weight: 700; font-size: 16px; margin: 2px 0; }
+  .meal-meta { font-size: 13px; color: var(--muted); }
+  .ingredient-list { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border); font-size: 14px; }
+  .ingredient-row-display { display: flex; justify-content: space-between; padding: 3px 0; }
+  .tag-chip { display: inline-block; background: var(--bg); border: 1px solid var(--border); border-radius: 12px; padding: 1px 8px; font-size: 12px; margin-left: 4px; }
+  .checkbox-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; }
+  .checkbox-row input { width: auto; margin: 0; }
+  .checkbox-row label { text-transform: none; font-size: 14px; color: var(--text); margin: 0; flex: 1; }
+  .qty-input { width: 70px !important; margin: 0 !important; padding: 6px 8px !important; display: none; }
+  .ingredient-row {
+    border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 10px; background: var(--bg);
+  }
+  .ingredient-row-top { display: flex; gap: 8px; }
+  .ingredient-row-top input, .ingredient-row-top select { margin-bottom: 8px; }
+  .remove-row-btn { background: none; border: none; color: #C0392B; cursor: pointer; font-size: 18px; padding: 4px 8px; }
+  .modal-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(26,26,46,0.4);
+    z-index: 100; align-items: flex-end; justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--card); border-radius: 24px 24px 0 0; padding: 24px 20px 32px;
+    width: 100%; max-width: 560px; max-height: 88vh; overflow-y: auto;
+  }
+  @media (min-width: 768px) {
+    .modal-overlay { align-items: center; }
+    .modal { border-radius: 24px; margin: 20px; }
+  }
+  .empty-state { text-align: center; padding: 30px 20px; color: var(--muted); font-size: 14px; }
+  .category-group { margin-bottom: 18px; }
+  .category-label { font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); font-weight: 700; margin-bottom: 8px; }
+  .shop-item { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+  .shop-item:last-child { border-bottom: none; }
+  .shop-item input[type=checkbox] { width: 20px; height: 20px; margin: 0; }
+  .shop-item.purchased .shop-item-name { text-decoration: line-through; color: var(--muted); }
+  .shop-item-name { flex: 1; font-size: 15px; }
+  .shop-item-qty { font-size: 13px; color: var(--muted); }
+  .radio-toggle { display: flex; gap: 8px; margin-bottom: 14px; }
+  .radio-toggle label {
+    flex: 1; text-align: center; padding: 10px; border: 1.5px solid var(--border); border-radius: 8px;
+    cursor: pointer; text-transform: none; font-size: 14px; color: var(--text); font-weight: 600;
+  }
+  .radio-toggle input { display: none; }
+  .radio-toggle input:checked + label { border-color: var(--primary); background: var(--bg); color: var(--primary); }
+  .error-text { color: #C0392B; font-size: 13px; margin-top: -8px; margin-bottom: 12px; }
+  .hidden { display: none !important; }
+  a.directions-link { color: var(--secondary); font-size: 13px; text-decoration: none; font-weight: 600; }
+</style>
+</head>
+<body>
+
+<header>
+  <a href="index.html" class="logo">🧭 TripCrafted</a>
+  <nav><a href="index.html">Dashboard</a></nav>
+</header>
+
+<main>
+  <div class="trip-header">
+    <h2 id="tripName">Loading...</h2>
+    <div class="dates" id="tripDates"></div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="meals" onclick="window.switchTab('meals')">Meals</button>
+    <button class="tab-btn" data-tab="supplies" onclick="window.switchTab('supplies')">Supplies</button>
+    <button class="tab-btn" data-tab="shopping" onclick="window.switchTab('shopping')">Shopping List</button>
+  </div>
+
+  <!-- MEALS -->
+  <div class="tab-panel active" id="tab-meals">
+    <div class="section-header">
+      <h3 style="margin:0;">Meals</h3>
+      <button class="btn-primary" onclick="window.openMealModal()">+ Add Meal</button>
+    </div>
+    <div id="mealsList"></div>
+    <div id="mealsEmpty" class="empty-state hidden">No meals planned yet.</div>
+  </div>
+
+  <!-- SUPPLIES -->
+  <div class="tab-panel" id="tab-supplies">
+    <div class="section-header">
+      <h3 style="margin:0;">Supplies</h3>
+      <button class="btn-primary" onclick="window.openSupplyModal()">+ Add Supply</button>
+    </div>
+    <div id="suppliesList"></div>
+    <div id="suppliesEmpty" class="empty-state hidden">No supplies added yet.</div>
+  </div>
+
+  <!-- SHOPPING LIST -->
+  <div class="tab-panel" id="tab-shopping">
+    <div class="section-header">
+      <h3 style="margin:0;">Your Shopping List</h3>
+    </div>
+    <div class="card">
+      <div id="shoppingList"></div>
+      <div id="shoppingEmpty" class="empty-state hidden">Nothing on your list right now.</div>
+    </div>
+  </div>
+</main>
+
+<!-- ADD MEAL MODAL -->
+<div class="modal-overlay" id="mealModalOverlay">
+  <div class="modal">
+    <h2>Add Meal</h2>
+
+    <div class="row">
+      <div style="flex:1;">
+        <label>Day</label>
+        <select id="mealDay"></select>
+      </div>
+      <div style="flex:1;">
+        <label>Meal</label>
+        <select id="mealSlot">
+          <option value="breakfast">Breakfast</option>
+          <option value="lunch">Lunch</option>
+          <option value="dinner">Dinner</option>
+          <option value="snack">Snack</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="radio-toggle">
+      <input type="radio" name="locType" id="locHome" value="home" checked onchange="window.toggleMealLocation()">
+      <label for="locHome">Cooking at Home</label>
+      <input type="radio" name="locType" id="locOut" value="out" onchange="window.toggleMealLocation()">
+      <label for="locOut">Eating Out</label>
+    </div>
+
+    <!-- HOME fields -->
+    <div id="mealHomeFields">
+      <label>Entree Name</label>
+      <input type="text" id="mealEntreeName" placeholder="Spaghetti & Meatballs">
+
+      <label>Who's Cooking</label>
+      <div id="mealCooksPicker"></div>
+
+      <label style="margin-top:14px;">Ingredients</label>
+      <div id="ingredientRowsContainer"></div>
+      <button class="btn-secondary" type="button" onclick="window.addIngredientRow()">+ Add Ingredient</button>
+    </div>
+
+    <!-- OUT fields -->
+    <div id="mealOutFields" class="hidden">
+      <label>Restaurant Name</label>
+      <input type="text" id="mealRestaurantName" placeholder="The Rusty Anchor">
+      <label>Address</label>
+      <input type="text" id="mealAddress" placeholder="123 Main St, City, State">
+      <label>Notes</label>
+      <textarea id="mealOutNotes" placeholder="Reservation at 6:30pm..."></textarea>
+    </div>
+
+    <div id="mealError" class="error-text hidden"></div>
+
+    <div class="row" style="margin-top:20px;">
+      <button class="btn-text" onclick="window.closeMealModal()">Cancel</button>
+      <button class="btn-primary" style="flex:1;" onclick="window.saveMeal()">Save Meal</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADD SUPPLY MODAL -->
+<div class="modal-overlay" id="supplyModalOverlay">
+  <div class="modal">
+    <h2>Add Supply</h2>
+    <label>Item Name</label>
+    <input type="text" id="supplyName" placeholder="Toilet Paper">
+
+    <label>Category</label>
+    <select id="supplyCategory">
+      <option value="Food">Food</option>
+      <option value="Toiletries">Toiletries</option>
+      <option value="Medications">Medications</option>
+      <option value="Electronics">Electronics</option>
+      <option value="Clothing">Clothing</option>
+      <option value="Documents">Documents</option>
+      <option value="Other" selected>Other</option>
+    </select>
+
+    <div class="checkbox-row">
+      <input type="checkbox" id="supplyNeedsPurchase">
+      <label for="supplyNeedsPurchase">Needs to be purchased</label>
+    </div>
+
+    <label>Who's Bringing It</label>
+    <div id="supplyBringerPicker"></div>
+
+    <label style="margin-top:10px;">Notes</label>
+    <textarea id="supplyNotes" placeholder="Optional notes..."></textarea>
+
+    <div id="supplyError" class="error-text hidden"></div>
+
+    <div class="row" style="margin-top:20px;">
+      <button class="btn-text" onclick="window.closeSupplyModal()">Cancel</button>
+      <button class="btn-primary" style="flex:1;" onclick="window.saveSupply()">Save Supply</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+  import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+  import {
+    getFirestore, collection, doc, getDoc, getDocs, addDoc, updateDoc, deleteDoc,
+    query, where, serverTimestamp
+  } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+  import { VERSION } from './version.js';
+  const { firebaseConfig, TRIP_THEMES } = await import(`./firebase-config.js?v=${VERSION}`);
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  const CATEGORIES = ['Food', 'Toiletries', 'Medications', 'Electronics', 'Clothing', 'Documents', 'Other'];
+
+  const params = new URLSearchParams(window.location.search);
+  const tripId = params.get('trip');
+
+  let currentUser = null;
+  let currentPerson = null;
+  let trip = null;
+  let attendees = [];       // [{id, name, ...}]
+  let attendeesById = {};
+  let meals = [];
+  let items = [];           // all items (meal-ingredient + supply) for this trip
+
+  if (!tripId) {
+    window.location.href = 'index.html';
+  }
+
+  onAuthStateChanged(auth, async (user) => {
+    if (!user) { window.location.href = 'index.html'; return; }
+    currentUser = user;
+
+    const personQ = query(collection(db, 'people'), where('authUid', '==', user.uid));
+    const personSnap = await getDocs(personQ);
+    if (personSnap.empty) { window.location.href = 'index.html'; return; }
+    currentPerson = { id: personSnap.docs[0].id, ...personSnap.docs[0].data() };
+
+    const tripSnap = await getDoc(doc(db, 'trips', tripId));
+    if (!tripSnap.exists()) {
+      document.getElementById('tripName').textContent = 'Trip not found';
+      return;
+    }
+    trip = { id: tripSnap.id, ...tripSnap.data() };
+
+    if (!trip.attendeeUids || !trip.attendeeUids.includes(user.uid)) {
+      document.getElementById('tripName').textContent = "You don't have access to this trip";
+      return;
+    }
+
+    applyTheme(trip.theme);
+    document.getElementById('tripName').textContent = trip.name;
+    document.getElementById('tripDates').textContent = formatDateRange(trip.startDate, trip.endDate);
+
+    const attendeeSnaps = await Promise.all(trip.attendees.map(pid => getDoc(doc(db, 'people', pid))));
+    attendees = attendeeSnaps.filter(s => s.exists()).map(s => ({ id: s.id, ...s.data() }));
+    attendeesById = {};
+    attendees.forEach(a => attendeesById[a.id] = a);
+
+    populateMealDayOptions();
+    await loadMeals();
+    await loadItems();
+    renderAll();
+  });
+
+  function applyTheme(themeKey) {
+    const theme = TRIP_THEMES[themeKey] || TRIP_THEMES.default;
+    document.documentElement.style.setProperty('--primary', theme.primary);
+    document.documentElement.style.setProperty('--secondary', theme.secondary);
+    document.documentElement.style.setProperty('--bg', theme.bg);
+    document.documentElement.style.setProperty('--border', theme.accent);
+  }
+
+  function formatDateRange(start, end) {
+    const opts = { month: 'short', day: 'numeric', year: 'numeric' };
+    const s = new Date(start + 'T00:00:00').toLocaleDateString('en-US', opts);
+    const e = new Date(end + 'T00:00:00').toLocaleDateString('en-US', opts);
+    return `${s} – ${e}`;
+  }
+
+  function dateRange(start, end) {
+    const dates = [];
+    let cur = new Date(start + 'T00:00:00');
+    const last = new Date(end + 'T00:00:00');
+    while (cur <= last) {
+      dates.push(cur.toISOString().slice(0, 10));
+      cur.setDate(cur.getDate() + 1);
+    }
+    return dates;
+  }
+
+  function formatDayLabel(dateStr) {
+    return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str || '';
+    return div.innerHTML;
+  }
+
+  // ---------- Tabs ----------
+  window.switchTab = function (tab) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'tab-' + tab));
+  };
+
+  // ---------- Load data ----------
+  async function loadMeals() {
+    const snap = await getDocs(collection(db, 'trips', tripId, 'meals'));
+    meals = [];
+    snap.forEach(d => meals.push({ id: d.id, ...d.data() }));
+    const slotOrder = { breakfast: 0, lunch: 1, dinner: 2, snack: 3, other: 4 };
+    meals.sort((a, b) => (a.day + slotOrder[a.slot]).localeCompare(b.day + slotOrder[b.slot]));
+  }
+
+  async function loadItems() {
+    const snap = await getDocs(collection(db, 'trips', tripId, 'items'));
+    items = [];
+    snap.forEach(d => items.push({ id: d.id, ...d.data() }));
+  }
+
+  function renderAll() {
+    renderMeals();
+    renderSupplies();
+    renderShoppingList();
+  }
+
+  // ---------- Meals ----------
+  function populateMealDayOptions() {
+    const sel = document.getElementById('mealDay');
+    sel.innerHTML = '';
+    dateRange(trip.startDate, trip.endDate).forEach(d => {
+      const opt = document.createElement('option');
+      opt.value = d;
+      opt.textContent = formatDayLabel(d);
+      sel.appendChild(opt);
+    });
+  }
+
+  function renderMeals() {
+    const listEl = document.getElementById('mealsList');
+    const emptyEl = document.getElementById('mealsEmpty');
+    listEl.innerHTML = '';
+    if (meals.length === 0) { emptyEl.classList.remove('hidden'); return; }
+    emptyEl.classList.add('hidden');
+
+    const byDay = {};
+    meals.forEach(m => { (byDay[m.day] = byDay[m.day] || []).push(m); });
+
+    Object.keys(byDay).sort().forEach(day => {
+      const group = document.createElement('div');
+      group.className = 'day-group';
+      group.innerHTML = `<div class="day-label">${formatDayLabel(day)}</div>`;
+      byDay[day].forEach(meal => group.appendChild(buildMealCard(meal)));
+      listEl.appendChild(group);
+    });
+  }
+
+  function buildMealCard(meal) {
+    const card = document.createElement('div');
+    card.className = 'card meal-card';
+    const mealIngredients = items.filter(i => i.type === 'meal-ingredient' && i.parentMealId === meal.id);
+
+    let bodyHtml = '';
+    if (meal.locationType === 'home') {
+      const cookNames = (meal.cooks || []).map(pid => attendeesById[pid]?.name).filter(Boolean).join(', ');
+      bodyHtml = `
+        <div class="meal-slot">${meal.slot} · Home</div>
+        <div class="meal-name">${escapeHtml(meal.name)}</div>
+        ${cookNames ? `<div class="meal-meta">Cooking: ${escapeHtml(cookNames)}</div>` : ''}
+        ${mealIngredients.length ? `<div class="ingredient-list">${mealIngredients.map(ing => `
+          <div class="ingredient-row-display">
+            <span>${escapeHtml(ing.name)} ${formatQty(ing)}</span>
+            ${ing.needsPurchase ? '<span class="tag-chip">To buy</span>' : ''}
+          </div>
+        `).join('')}</div>` : ''}
+      `;
+    } else {
+      bodyHtml = `
+        <div class="meal-slot">${meal.slot} · Eating Out</div>
+        <div class="meal-name">${escapeHtml(meal.name)}</div>
+        ${meal.address ? `<div class="meal-meta">${escapeHtml(meal.address)} — <a class="directions-link" target="_blank" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(meal.address)}">Directions</a></div>` : ''}
+        ${meal.notes ? `<div class="meal-meta" style="margin-top:4px;">${escapeHtml(meal.notes)}</div>` : ''}
+      `;
+    }
+
+    card.innerHTML = `<div style="flex:1;">${bodyHtml}</div>`;
+    const delBtn = document.createElement('button');
+    delBtn.className = 'btn-danger';
+    delBtn.textContent = 'Delete';
+    delBtn.onclick = () => window.deleteMeal(meal.id);
+    card.appendChild(delBtn);
+    return card;
+  }
+
+  function formatQty(item) {
+    if (item.quantity == null) return '';
+    if (typeof item.quantity === 'number') return `(${item.quantity})`;
+    const parts = Object.entries(item.quantity).map(([pid, q]) => `${attendeesById[pid]?.name || '?'}: ${q}`);
+    return `(${parts.join(', ')})`;
+  }
+
+  window.deleteMeal = async function (mealId) {
+    if (!confirm('Delete this meal and its ingredients?')) return;
+    const mealItems = items.filter(i => i.type === 'meal-ingredient' && i.parentMealId === mealId);
+    await Promise.all(mealItems.map(i => deleteDoc(doc(db, 'trips', tripId, 'items', i.id))));
+    await deleteDoc(doc(db, 'trips', tripId, 'meals', mealId));
+    await loadMeals();
+    await loadItems();
+    renderAll();
+  };
+
+  // ---------- Add Meal Modal ----------
+  window.openMealModal = function () {
+    document.getElementById('mealEntreeName').value = '';
+    document.getElementById('mealRestaurantName').value = '';
+    document.getElementById('mealAddress').value = '';
+    document.getElementById('mealOutNotes').value = '';
+    document.getElementById('mealError').classList.add('hidden');
+    document.getElementById('locHome').checked = true;
+    window.toggleMealLocation();
+    renderMealCooksPicker();
+    document.getElementById('ingredientRowsContainer').innerHTML = '';
+    window.addIngredientRow();
+    document.getElementById('mealModalOverlay').classList.add('open');
+  };
+  window.closeMealModal = function () {
+    document.getElementById('mealModalOverlay').classList.remove('open');
+  };
+  window.toggleMealLocation = function () {
+    const isHome = document.getElementById('locHome').checked;
+    document.getElementById('mealHomeFields').classList.toggle('hidden', !isHome);
+    document.getElementById('mealOutFields').classList.toggle('hidden', isHome);
+  };
+
+  function renderMealCooksPicker() {
+    const el = document.getElementById('mealCooksPicker');
+    el.innerHTML = attendees.map(p => `
+      <div class="checkbox-row">
+        <input type="checkbox" class="meal-cook-cb" value="${p.id}" id="cook_${p.id}">
+        <label for="cook_${p.id}">${escapeHtml(p.name)}</label>
+      </div>
+    `).join('');
+  }
+
+  function buildBuyerPickerHtml(rowClassPrefix) {
+    return attendees.map(p => `
+      <div class="checkbox-row">
+        <input type="checkbox" class="${rowClassPrefix}-buyer-cb" data-person-id="${p.id}"
+               onchange="window.toggleQtyInput(this)">
+        <label style="flex:0 0 auto; min-width:120px;">${escapeHtml(p.name)}</label>
+        <input type="number" step="0.1" class="qty-input ${rowClassPrefix}-buyer-qty" data-person-id="${p.id}" placeholder="Qty" value="1">
+      </div>
+    `).join('');
+  }
+
+  window.toggleQtyInput = function (checkbox) {
+    const row = checkbox.closest('.checkbox-row');
+    const qtyInput = row.querySelector('input[type=number]');
+    qtyInput.style.display = checkbox.checked ? 'inline-block' : 'none';
+  };
+
+  window.addIngredientRow = function () {
+    const container = document.getElementById('ingredientRowsContainer');
+    const row = document.createElement('div');
+    row.className = 'ingredient-row';
+    row.innerHTML = `
+      <div class="ingredient-row-top">
+        <input type="text" class="ing-name" placeholder="Ingredient name" style="flex:2;">
+        <select class="ing-category" style="flex:1;">
+          ${CATEGORIES.map(c => `<option value="${c}"${c === 'Food' ? ' selected' : ''}>${c}</option>`).join('')}
+        </select>
+        <button type="button" class="remove-row-btn" onclick="this.closest('.ingredient-row').remove()">✕</button>
+      </div>
+      <div class="checkbox-row">
+        <input type="checkbox" class="ing-needs-purchase" onchange="window.toggleBuyerSection(this)">
+        <label>Needs to be purchased</label>
+      </div>
+      <div class="ing-buyer-section hidden">
+        <label style="margin-top:8px;">Who's Buying</label>
+        ${buildBuyerPickerHtml('ing')}
+      </div>
+    `;
+    container.appendChild(row);
+  };
+
+  window.toggleBuyerSection = function (checkbox) {
+    const section = checkbox.closest('.ingredient-row').querySelector('.ing-buyer-section');
+    section.classList.toggle('hidden', !checkbox.checked);
+  };
+
+  window.saveMeal = async function () {
+    const errEl = document.getElementById('mealError');
+    errEl.classList.add('hidden');
+    const day = document.getElementById('mealDay').value;
+    const slot = document.getElementById('mealSlot').value;
+    const isHome = document.getElementById('locHome').checked;
+
+    let mealData;
+    if (isHome) {
+      const name = document.getElementById('mealEntreeName').value.trim();
+      if (!name) { errEl.textContent = 'Please enter an entree name.'; errEl.classList.remove('hidden'); return; }
+      const cooks = Array.from(document.querySelectorAll('.meal-cook-cb:checked')).map(cb => cb.value);
+      mealData = { day, slot, locationType: 'home', name, cooks, notes: '' };
+    } else {
+      const name = document.getElementById('mealRestaurantName').value.trim();
+      if (!name) { errEl.textContent = 'Please enter a restaurant name.'; errEl.classList.remove('hidden'); return; }
+      const address = document.getElementById('mealAddress').value.trim();
+      const notes = document.getElementById('mealOutNotes').value.trim();
+      mealData = { day, slot, locationType: 'out', name, address, notes };
+    }
+    mealData.createdAt = serverTimestamp();
+
+    const mealRef = await addDoc(collection(db, 'trips', tripId, 'meals'), mealData);
+
+    if (isHome) {
+      const rows = document.querySelectorAll('#ingredientRowsContainer .ingredient-row');
+      for (const row of rows) {
+        const name = row.querySelector('.ing-name').value.trim();
+        if (!name) continue;
+        const category = row.querySelector('.ing-category').value;
+        const needsPurchase = row.querySelector('.ing-needs-purchase').checked;
+        let taggedPeople = [];
+        let quantity = 1;
+        if (needsPurchase) {
+          const buyerChecks = row.querySelectorAll('.ing-buyer-cb:checked');
+          taggedPeople = Array.from(buyerChecks).map(cb => cb.dataset.personId);
+          if (taggedPeople.length === 1) {
+            const qtyInput = row.querySelector(`.ing-buyer-qty[data-person-id="${taggedPeople[0]}"]`);
+            quantity = parseFloat(qtyInput.value) || 1;
+          } else if (taggedPeople.length > 1) {
+            quantity = {};
+            taggedPeople.forEach(pid => {
+              const qtyInput = row.querySelector(`.ing-buyer-qty[data-person-id="${pid}"]`);
+              quantity[pid] = parseFloat(qtyInput.value) || 1;
+            });
+          }
+        }
+        await addDoc(collection(db, 'trips', tripId, 'items'), {
+          type: 'meal-ingredient', name, category, quantity, taggedPeople,
+          needsPurchase, purchased: false, parentMealId: mealRef.id, notes: '',
+          createdAt: serverTimestamp()
+        });
+      }
+    }
+
+    window.closeMealModal();
+    await loadMeals();
+    await loadItems();
+    renderAll();
+  };
+
+  // ---------- Supplies ----------
+  function renderSupplies() {
+    const listEl = document.getElementById('suppliesList');
+    const emptyEl = document.getElementById('suppliesEmpty');
+    const supplies = items.filter(i => i.type === 'supply');
+    listEl.innerHTML = '';
+    if (supplies.length === 0) { emptyEl.classList.remove('hidden'); return; }
+    emptyEl.classList.add('hidden');
+
+    const byCategory = {};
+    supplies.forEach(s => { (byCategory[s.category || 'Other'] = byCategory[s.category || 'Other'] || []).push(s); });
+
+    CATEGORIES.forEach(cat => {
+      if (!byCategory[cat]) return;
+      const group = document.createElement('div');
+      group.className = 'category-group';
+      group.innerHTML = `<div class="category-label">${cat}</div>`;
+      byCategory[cat].forEach(supply => {
+        const names = (supply.taggedPeople || []).map(pid => attendeesById[pid]?.name).filter(Boolean).join(', ');
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.style.display = 'flex';
+        card.style.justifyContent = 'space-between';
+        card.style.alignItems = 'flex-start';
+        card.innerHTML = `
+          <div>
+            <div class="meal-name">${escapeHtml(supply.name)} ${formatQty(supply)}</div>
+            ${names ? `<div class="meal-meta">Bringing: ${escapeHtml(names)}</div>` : ''}
+            ${supply.needsPurchase ? '<span class="tag-chip">To buy</span>' : ''}
+            ${supply.notes ? `<div class="meal-meta" style="margin-top:4px;">${escapeHtml(supply.notes)}</div>` : ''}
+          </div>
+        `;
+        const delBtn = document.createElement('button');
+        delBtn.className = 'btn-danger';
+        delBtn.textContent = 'Delete';
+        delBtn.onclick = () => window.deleteSupply(supply.id);
+        card.appendChild(delBtn);
+        group.appendChild(card);
+      });
+      listEl.appendChild(group);
+    });
+  }
+
+  window.deleteSupply = async function (itemId) {
+    if (!confirm('Delete this supply?')) return;
+    await deleteDoc(doc(db, 'trips', tripId, 'items', itemId));
+    await loadItems();
+    renderAll();
+  };
+
+  window.openSupplyModal = function () {
+    document.getElementById('supplyName').value = '';
+    document.getElementById('supplyCategory').value = 'Other';
+    document.getElementById('supplyNeedsPurchase').checked = false;
+    document.getElementById('supplyNotes').value = '';
+    document.getElementById('supplyError').classList.add('hidden');
+    document.getElementById('supplyBringerPicker').innerHTML = buildBuyerPickerHtml('supply');
+    document.getElementById('supplyModalOverlay').classList.add('open');
+  };
+  window.closeSupplyModal = function () {
+    document.getElementById('supplyModalOverlay').classList.remove('open');
+  };
+
+  window.saveSupply = async function () {
+    const errEl = document.getElementById('supplyError');
+    errEl.classList.add('hidden');
+    const name = document.getElementById('supplyName').value.trim();
+    if (!name) { errEl.textContent = 'Please enter an item name.'; errEl.classList.remove('hidden'); return; }
+    const category = document.getElementById('supplyCategory').value;
+    const needsPurchase = document.getElementById('supplyNeedsPurchase').checked;
+    const notes = document.getElementById('supplyNotes').value.trim();
+
+    const buyerChecks = document.querySelectorAll('.supply-buyer-cb:checked');
+    const taggedPeople = Array.from(buyerChecks).map(cb => cb.dataset.personId);
+    let quantity = 1;
+    if (taggedPeople.length === 1) {
+      const qtyInput = document.querySelector(`.supply-buyer-qty[data-person-id="${taggedPeople[0]}"]`);
+      quantity = parseFloat(qtyInput.value) || 1;
+    } else if (taggedPeople.length > 1) {
+      quantity = {};
+      taggedPeople.forEach(pid => {
+        const qtyInput = document.querySelector(`.supply-buyer-qty[data-person-id="${pid}"]`);
+        quantity[pid] = parseFloat(qtyInput.value) || 1;
+      });
+    }
+
+    await addDoc(collection(db, 'trips', tripId, 'items'), {
+      type: 'supply', name, category, quantity, taggedPeople,
+      needsPurchase, purchased: false, parentMealId: null, notes,
+      createdAt: serverTimestamp()
+    });
+
+    window.closeSupplyModal();
+    await loadItems();
+    renderAll();
+  };
+
+  // ---------- Shopping List ----------
+  function renderShoppingList() {
+    const listEl = document.getElementById('shoppingList');
+    const emptyEl = document.getElementById('shoppingEmpty');
+    const myItems = items.filter(i =>
+      i.needsPurchase && (i.taggedPeople || []).includes(currentPerson.id)
+    );
+    listEl.innerHTML = '';
+    if (myItems.length === 0) { emptyEl.classList.remove('hidden'); return; }
+    emptyEl.classList.add('hidden');
+
+    const byCategory = {};
+    myItems.forEach(i => { (byCategory[i.category || 'Other'] = byCategory[i.category || 'Other'] || []).push(i); });
+
+    CATEGORIES.forEach(cat => {
+      if (!byCategory[cat]) return;
+      const header = document.createElement('div');
+      header.className = 'category-label';
+      header.textContent = cat;
+      header.style.marginTop = '10px';
+      listEl.appendChild(header);
+      byCategory[cat].forEach(item => {
+        const myQty = typeof item.quantity === 'number' ? item.quantity : (item.quantity?.[currentPerson.id] ?? '');
+        const row = document.createElement('div');
+        row.className = 'shop-item' + (item.purchased ? ' purchased' : '');
+        row.innerHTML = `
+          <input type="checkbox" ${item.purchased ? 'checked' : ''}>
+          <span class="shop-item-name">${escapeHtml(item.name)}</span>
+          <span class="shop-item-qty">${myQty !== '' ? 'Qty: ' + myQty : ''}</span>
+        `;
+        row.querySelector('input').onchange = (e) => window.togglePurchased(item.id, e.target.checked);
+        listEl.appendChild(row);
+      });
+    });
+  }
+
+  window.togglePurchased = async function (itemId, purchased) {
+    await updateDoc(doc(db, 'trips', tripId, 'items', itemId), { purchased });
+    await loadItems();
+    renderShoppingList();
+    renderMeals();
+    renderSupplies();
+  };
+</script>
+</body>
+</html>

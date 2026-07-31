@@ -525,8 +525,8 @@
         </div>
         <div class="countdown-pill" style="background:${theme.primary};">${daysUntilLabel(trip.startDate)}</div>
       `;
-      // Phase 2 will link this to trip.html
-      card.onclick = () => alert('Trip detail page (trip.html) comes in Phase 2 — this is where you\'ll manage meals, packing, activities, and more for "' + trip.name + '".');
+      // Links to the trip detail page
+      card.onclick = () => { window.location.href = `trip.html?trip=${trip.id}`; };
       listEl.appendChild(card);
     });
   }

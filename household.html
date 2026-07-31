@@ -116,9 +116,12 @@
 
     const listEl = document.getElementById('memberList');
     listEl.innerHTML = '';
-    for (const pid of currentHousehold.memberIds) {
-      const pSnap = await getDoc(doc(db, 'people', pid));
-      if (!pSnap.exists()) continue;
+    const memberSnaps = await Promise.all(
+      currentHousehold.memberIds.map(pid => getDoc(doc(db, 'people', pid)))
+    );
+    currentHousehold.memberIds.forEach((pid, i) => {
+      const pSnap = memberSnaps[i];
+      if (!pSnap.exists()) return;
       const p = pSnap.data();
       const row = document.createElement('div');
       row.className = 'member-row';
@@ -134,7 +137,7 @@
         <span class="member-tag">${p.email || ''}</span>
       `;
       listEl.appendChild(row);
-    }
+    });
   }
 
   window.sendMemberInvite = async function () {

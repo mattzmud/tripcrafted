@@ -471,11 +471,12 @@
   async function loadHousehold(householdId) {
     const hhSnap = await getDoc(doc(db, 'households', householdId));
     currentHousehold = { id: hhSnap.id, ...hhSnap.data() };
-    householdMembers = [];
-    for (const pid of currentHousehold.memberIds) {
-      const pSnap = await getDoc(doc(db, 'people', pid));
-      if (pSnap.exists()) householdMembers.push({ id: pSnap.id, ...pSnap.data() });
-    }
+    const memberSnaps = await Promise.all(
+      currentHousehold.memberIds.map(pid => getDoc(doc(db, 'people', pid)))
+    );
+    householdMembers = memberSnaps
+      .filter(s => s.exists())
+      .map(s => ({ id: s.id, ...s.data() }));
   }
 
   // ---------- Trips ----------

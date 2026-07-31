@@ -265,6 +265,7 @@
     <div class="trip-lodging" id="tripLodging"></div>
     <button class="edit-trip-btn" onclick="window.openAddHouseholdModal()">+ Add From My Household</button>
     <button class="edit-trip-btn hidden" id="editTripBtn" onclick="window.openEditTripModal()">Edit Trip</button>
+    <button class="edit-trip-btn hidden" id="deleteTripBtn" onclick="window.deleteTrip()" style="background:rgba(192,57,43,0.3);">Delete Trip</button>
     <button class="edit-trip-btn" onclick="window.printItinerary()">🖨️ Print Itinerary</button>
   </div>
 
@@ -723,6 +724,7 @@
 
     if (trip.ownerUid === currentUser.uid) {
       document.getElementById('editTripBtn').classList.remove('hidden');
+      document.getElementById('deleteTripBtn').classList.remove('hidden');
     }
 
     renderHeaderExtras();
@@ -1773,6 +1775,22 @@
 
     window.closeEditTripModal();
     window.location.reload();
+  };
+
+  window.deleteTrip = async function () {
+    const confirmed = confirm(`Delete "${trip.name}" permanently? This removes all meals, supplies, packing lists, activities, and to-dos for this trip. This can't be undone.`);
+    if (!confirmed) return;
+    const doubleCheck = confirm('Really delete this trip? There is no way to recover it after this.');
+    if (!doubleCheck) return;
+
+    const subcollections = ['meals', 'items', 'activities', 'todos'];
+    for (const sub of subcollections) {
+      const snap = await getDocs(collection(db, 'trips', tripId, sub));
+      await Promise.all(snap.docs.map(d => deleteDoc(doc(db, 'trips', tripId, sub, d.id))));
+    }
+    await deleteDoc(doc(db, 'trips', tripId));
+
+    window.location.href = 'index.html';
   };
 
   // ---------- Activities ----------

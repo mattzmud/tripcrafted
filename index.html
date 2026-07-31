@@ -237,6 +237,9 @@
     <label>Trip Name</label>
     <input type="text" id="tripName" placeholder="Smoky Mountains 2026">
 
+    <label>Destination / City (optional)</label>
+    <input type="text" id="tripDestination" placeholder="Gatlinburg, TN">
+
     <div class="row">
       <div style="flex:1;">
         <label>Start Date</label>
@@ -521,6 +524,7 @@
       card.innerHTML = `
         <div>
           <div class="trip-name">${escapeHtml(trip.name)}</div>
+          ${trip.destination ? `<div class="trip-dates">📍 ${escapeHtml(trip.destination)}</div>` : ''}
           <div class="trip-dates">${formatDateRange(trip.startDate, trip.endDate)}</div>
         </div>
         <div class="countdown-pill" style="background:${theme.primary};">${daysUntilLabel(trip.startDate)}</div>
@@ -565,6 +569,7 @@
     document.getElementById('tripStart').value = '';
     document.getElementById('tripEnd').value = '';
     document.getElementById('tripLodging').value = '';
+    document.getElementById('tripDestination').value = '';
     document.getElementById('tripNotes').value = '';
     document.getElementById('guestName').value = '';
     document.getElementById('guestEmail').value = '';
@@ -638,6 +643,7 @@
     const errEl = document.getElementById('tripError');
     errEl.classList.add('hidden');
     const name = document.getElementById('tripName').value.trim();
+    const destination = document.getElementById('tripDestination').value.trim();
     const startDate = document.getElementById('tripStart').value;
     const endDate = document.getElementById('tripEnd').value;
     const lodgingLink = document.getElementById('tripLodging').value.trim();
@@ -677,7 +683,7 @@
     }
 
     const tripRef = await addDoc(collection(db, 'trips'), {
-      name, startDate, endDate, theme: selectedTheme,
+      name, destination, startDate, endDate, theme: selectedTheme,
       lodgingLink, notes,
       ownerId: currentPerson.id,
       ownerUid: currentUser.uid,

@@ -158,6 +158,14 @@
   .error-text { color: #C0392B; font-size: 13px; margin-top: -8px; margin-bottom: 12px; }
   .hidden { display: none !important; }
   a.directions-link { color: var(--secondary); font-size: 13px; text-decoration: none; font-weight: 600; }
+  .person-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+  .person-pill {
+    background: var(--card); border: 1.5px solid var(--border); border-radius: 20px;
+    padding: 7px 16px; font-size: 14px; font-weight: 700; cursor: pointer; color: var(--muted);
+  }
+  .person-pill.active { background: var(--primary); border-color: var(--primary); color: white; }
+  .packed .shop-item-name, .pack-item.packed .shop-item-name { text-decoration: line-through; color: var(--muted); }
+  .auto-tag { font-size: 11px; color: var(--muted); font-style: italic; margin-left: 6px; }
 </style>
 </head>
 <body>
@@ -175,6 +183,7 @@
   <div class="trip-header-card">
     <h2 id="tripName">Loading...</h2>
     <div class="dates" id="tripDates"></div>
+    <div class="dates" id="tripDestination" style="margin-top:2px;"></div>
     <div class="trip-attendees" id="tripAttendees"></div>
     <div class="trip-lodging" id="tripLodging"></div>
   </div>
@@ -182,6 +191,7 @@
   <div class="tabs">
     <button class="tab-btn active" data-tab="meals" onclick="window.switchTab('meals')">Meals</button>
     <button class="tab-btn" data-tab="supplies" onclick="window.switchTab('supplies')">Supplies</button>
+    <button class="tab-btn" data-tab="packing" onclick="window.switchTab('packing')">Packing</button>
     <button class="tab-btn" data-tab="shopping" onclick="window.switchTab('shopping')">Shopping List</button>
   </div>
 
@@ -213,6 +223,19 @@
     <div class="card">
       <div id="shoppingList"></div>
       <div id="shoppingEmpty" class="empty-state hidden">Nothing on your list right now.</div>
+    </div>
+  </div>
+
+  <!-- PACKING -->
+  <div class="tab-panel" id="tab-packing">
+    <div class="person-tabs" id="packingPersonTabs"></div>
+    <div class="section-header">
+      <h3 style="margin:0;" id="packingListTitle">Packing List</h3>
+      <button class="btn-primary" onclick="window.openPackingModal()">+ Add Item</button>
+    </div>
+    <div class="card">
+      <div id="packingList"></div>
+      <div id="packingEmpty" class="empty-state hidden">Nothing on this list yet.</div>
     </div>
   </div>
 </main>
@@ -321,6 +344,42 @@
   </div>
 </div>
 
+<!-- ADD/EDIT PACKING ITEM MODAL -->
+<div class="modal-overlay" id="packingModalOverlay">
+  <div class="modal">
+    <h2 id="packingModalTitle">Add Packing Item</h2>
+    <label>Item Name</label>
+    <input type="text" id="packingName" placeholder="Sunscreen">
+
+    <label>Category</label>
+    <select id="packingCategory">
+      <option value="Food">Food</option>
+      <option value="Toiletries">Toiletries</option>
+      <option value="Medications">Medications</option>
+      <option value="Electronics">Electronics</option>
+      <option value="Clothing">Clothing</option>
+      <option value="Documents">Documents</option>
+      <option value="Other" selected>Other</option>
+    </select>
+
+    <label>Quantity</label>
+    <input type="number" step="0.1" id="packingQty" value="1">
+
+    <label>Assign To</label>
+    <select id="packingAssignTo"></select>
+
+    <label style="margin-top:10px;">Notes</label>
+    <textarea id="packingNotes" placeholder="Optional notes..."></textarea>
+
+    <div id="packingError" class="error-text hidden"></div>
+
+    <div class="row" style="margin-top:20px;">
+      <button class="btn-text" onclick="window.closePackingModal()">Cancel</button>
+      <button class="btn-primary" id="packingSaveBtn" style="flex:1;" onclick="window.savePacking()">Save Item</button>
+    </div>
+  </div>
+</div>
+
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
   import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
@@ -346,9 +405,13 @@
   let attendees = [];       // [{id, name, ...}]
   let attendeesById = {};
   let meals = [];
-  let items = [];           // all items (meal-ingredient + supply) for this trip
+  let items = [];           // all items (meal-ingredient + supply + packing) for this trip
   let editingMealId = null;
   let editingSupplyId = null;
+  let currentHousehold = null;
+  let myHouseholdAttendees = [];  // attendees on this trip who are in your household
+  let activePackingTarget = null; // {type:'person', id} or {type:'household', id}
+  let editingPackingId = null;
 
   if (!tripId) {
     window.location.href = 'index.html';
@@ -384,11 +447,21 @@
     attendeesById = {};
     attendees.forEach(a => attendeesById[a.id] = a);
 
+    if (currentPerson.householdId) {
+      const hhSnap = await getDoc(doc(db, 'households', currentPerson.householdId));
+      if (hhSnap.exists()) {
+        currentHousehold = { id: hhSnap.id, ...hhSnap.data() };
+        myHouseholdAttendees = attendees.filter(a => currentHousehold.memberIds.includes(a.id));
+      }
+    }
+    if (myHouseholdAttendees.length === 0) myHouseholdAttendees = [currentPerson];
+
     renderHeaderExtras();
 
     populateMealDayOptions();
     await loadMeals();
     await loadItems();
+    renderPackingTabs();
     renderAll();
   });
 
@@ -396,6 +469,9 @@
     document.getElementById('tripAttendees').innerHTML = attendees
       .map(a => `<span class="attendee-chip">${escapeHtml(a.name)}</span>`)
       .join('');
+
+    const destEl = document.getElementById('tripDestination');
+    destEl.textContent = trip.destination ? `📍 ${trip.destination}` : '';
 
     const lodgingEl = document.getElementById('tripLodging');
     if (trip.lodgingLink) {
@@ -471,6 +547,7 @@
     renderMeals();
     renderSupplies();
     renderShoppingList();
+    renderPackingList();
   }
 
   // ============================================================
@@ -810,7 +887,7 @@
 
         await addDoc(collection(db, 'trips', tripId, 'items'), {
           type: 'meal-ingredient', name: name, category: category, quantity: result.quantity, taggedPeople: result.taggedPeople,
-          needsPurchase: needsPurchase, purchased: false, parentMealId: mealId, notes: '',
+          needsPurchase: needsPurchase, purchased: false, packed: false, parentMealId: mealId, notes: '',
           createdAt: serverTimestamp()
         });
       }
@@ -939,7 +1016,7 @@
 
     const supplyData = {
       type: 'supply', name: name, category: category, quantity: result.quantity, taggedPeople: result.taggedPeople,
-      needsPurchase: needsPurchase, purchased: false, parentMealId: null, notes: notes
+      needsPurchase: needsPurchase, purchased: false, packed: false, parentMealId: null, notes: notes
     };
 
     if (editingSupplyId) {
@@ -996,6 +1073,180 @@
     renderShoppingList();
     renderMeals();
     renderSupplies();
+  };
+
+  // ---------- Packing List ----------
+  function renderPackingTabs() {
+    const el = document.getElementById('packingPersonTabs');
+    if (!activePackingTarget) {
+      activePackingTarget = { type: 'household', id: currentHousehold ? currentHousehold.id : 'none' };
+    }
+    const pills = [];
+    pills.push({ type: 'household', id: currentHousehold ? currentHousehold.id : 'none', label: 'Family' });
+    myHouseholdAttendees.forEach(p => pills.push({ type: 'person', id: p.id, label: p.name }));
+
+    el.innerHTML = pills.map(pill => {
+      const isActive = pill.type === activePackingTarget.type && pill.id === activePackingTarget.id;
+      return `<button type="button" class="person-pill${isActive ? ' active' : ''}" onclick="window.setPackingTarget('${pill.type}','${pill.id}')">${escapeHtml(pill.label)}</button>`;
+    }).join('');
+
+    const activeLabel = pills.find(p => p.type === activePackingTarget.type && p.id === activePackingTarget.id);
+    document.getElementById('packingListTitle').textContent = activeLabel ? `${activeLabel.label}'s Packing List` : 'Packing List';
+    if (activeLabel && activeLabel.type === 'household') {
+      document.getElementById('packingListTitle').textContent = 'Family Packing List';
+    }
+  }
+
+  window.setPackingTarget = function (type, id) {
+    activePackingTarget = { type, id };
+    renderPackingTabs();
+    renderPackingList();
+  };
+
+  function getPackingItemsFor(target) {
+    if (!target) return [];
+    if (target.type === 'household') {
+      const auto = items.filter(i => i.type === 'meal-ingredient' || i.type === 'supply');
+      const standalone = items.filter(i => i.type === 'packing' && i.packingForType === 'household' && i.packingForId === target.id);
+      return [...auto, ...standalone];
+    } else {
+      const auto = items.filter(i => (i.type === 'meal-ingredient' || i.type === 'supply') && (i.taggedPeople || []).includes(target.id));
+      const standalone = items.filter(i => i.type === 'packing' && i.packingForType === 'person' && i.packingForId === target.id);
+      return [...auto, ...standalone];
+    }
+  }
+
+  function renderPackingList() {
+    if (!activePackingTarget) return;
+    const listEl = document.getElementById('packingList');
+    const emptyEl = document.getElementById('packingEmpty');
+    const packItems = getPackingItemsFor(activePackingTarget);
+    listEl.innerHTML = '';
+    if (packItems.length === 0) { emptyEl.classList.remove('hidden'); return; }
+    emptyEl.classList.add('hidden');
+
+    const byCategory = {};
+    packItems.forEach(i => { (byCategory[i.category || 'Other'] = byCategory[i.category || 'Other'] || []).push(i); });
+
+    CATEGORIES.forEach(cat => {
+      if (!byCategory[cat]) return;
+      const header = document.createElement('div');
+      header.className = 'category-label';
+      header.textContent = cat;
+      header.style.marginTop = '10px';
+      listEl.appendChild(header);
+      byCategory[cat].forEach(item => {
+        const isPerson = activePackingTarget.type === 'person';
+        const displayQty = isPerson && typeof item.quantity === 'object' && item.quantity[activePackingTarget.id] != null
+          ? item.quantity[activePackingTarget.id]
+          : (typeof item.quantity === 'number' ? item.quantity : '');
+        const sourceTag = item.type === 'meal-ingredient' ? 'from meal' : (item.type === 'supply' ? 'supply' : '');
+        const row = document.createElement('div');
+        row.className = 'shop-item pack-item' + (item.packed ? ' packed' : '');
+        row.innerHTML = `
+          <input type="checkbox" ${item.packed ? 'checked' : ''}>
+          <span class="shop-item-name">${escapeHtml(item.name)}${sourceTag ? `<span class="auto-tag">(${sourceTag})</span>` : ''}</span>
+          <span class="shop-item-qty">${displayQty !== '' ? 'Qty: ' + displayQty : ''}</span>
+        `;
+        row.querySelector('input').onchange = (e) => window.togglePacked(item.id, e.target.checked);
+        if (item.type === 'packing') {
+          const editBtn = document.createElement('button');
+          editBtn.className = 'btn-link';
+          editBtn.textContent = 'Edit';
+          editBtn.onclick = () => window.openPackingModal(item.id);
+          row.appendChild(editBtn);
+          const delBtn = document.createElement('button');
+          delBtn.className = 'btn-danger';
+          delBtn.textContent = 'Delete';
+          delBtn.onclick = () => window.deletePacking(item.id);
+          row.appendChild(delBtn);
+        }
+        listEl.appendChild(row);
+      });
+    });
+  }
+
+  window.togglePacked = async function (itemId, packed) {
+    await updateDoc(doc(db, 'trips', tripId, 'items', itemId), { packed: packed });
+    await loadItems();
+    renderPackingList();
+  };
+
+  window.deletePacking = async function (itemId) {
+    if (!confirm('Delete this packing item?')) return;
+    await deleteDoc(doc(db, 'trips', tripId, 'items', itemId));
+    await loadItems();
+    renderPackingList();
+  };
+
+  function populatePackingAssignOptions(selectedType, selectedId) {
+    const sel = document.getElementById('packingAssignTo');
+    const options = [];
+    options.push({ type: 'household', id: currentHousehold ? currentHousehold.id : 'none', label: 'Family (General)' });
+    myHouseholdAttendees.forEach(p => options.push({ type: 'person', id: p.id, label: p.name }));
+    sel.innerHTML = options.map(o =>
+      `<option value="${o.type}|${o.id}"${o.type === selectedType && o.id === selectedId ? ' selected' : ''}>${escapeHtml(o.label)}</option>`
+    ).join('');
+  }
+
+  window.openPackingModal = function (itemId) {
+    editingPackingId = itemId || null;
+    document.getElementById('packingError').classList.add('hidden');
+
+    if (editingPackingId) {
+      const item = items.find(i => i.id === editingPackingId);
+      document.getElementById('packingModalTitle').textContent = 'Edit Packing Item';
+      document.getElementById('packingSaveBtn').textContent = 'Update Item';
+      document.getElementById('packingName').value = item.name || '';
+      document.getElementById('packingCategory').value = item.category || 'Other';
+      document.getElementById('packingQty').value = typeof item.quantity === 'number' ? item.quantity : 1;
+      document.getElementById('packingNotes').value = item.notes || '';
+      populatePackingAssignOptions(item.packingForType, item.packingForId);
+    } else {
+      document.getElementById('packingModalTitle').textContent = 'Add Packing Item';
+      document.getElementById('packingSaveBtn').textContent = 'Save Item';
+      document.getElementById('packingName').value = '';
+      document.getElementById('packingCategory').value = 'Other';
+      document.getElementById('packingQty').value = 1;
+      document.getElementById('packingNotes').value = '';
+      const defaultType = activePackingTarget ? activePackingTarget.type : 'household';
+      const defaultId = activePackingTarget ? activePackingTarget.id : (currentHousehold ? currentHousehold.id : 'none');
+      populatePackingAssignOptions(defaultType, defaultId);
+    }
+
+    document.getElementById('packingModalOverlay').classList.add('open');
+  };
+  window.closePackingModal = function () {
+    document.getElementById('packingModalOverlay').classList.remove('open');
+    editingPackingId = null;
+  };
+
+  window.savePacking = async function () {
+    const errEl = document.getElementById('packingError');
+    errEl.classList.add('hidden');
+    const name = document.getElementById('packingName').value.trim();
+    if (!name) { errEl.textContent = 'Please enter an item name.'; errEl.classList.remove('hidden'); return; }
+    const category = document.getElementById('packingCategory').value;
+    const quantity = parseFloat(document.getElementById('packingQty').value) || 1;
+    const notes = document.getElementById('packingNotes').value.trim();
+    const [packingForType, packingForId] = document.getElementById('packingAssignTo').value.split('|');
+
+    const packingData = {
+      type: 'packing', name, category, quantity, notes,
+      packingForType, packingForId, packed: false,
+      taggedPeople: [], needsPurchase: false, purchased: false, parentMealId: null
+    };
+
+    if (editingPackingId) {
+      await updateDoc(doc(db, 'trips', tripId, 'items', editingPackingId), packingData);
+    } else {
+      packingData.createdAt = serverTimestamp();
+      await addDoc(collection(db, 'trips', tripId, 'items'), packingData);
+    }
+
+    window.closePackingModal();
+    await loadItems();
+    renderPackingList();
   };
 </script>
 </body>

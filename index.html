@@ -295,6 +295,14 @@
   let householdMembers = [];     // people docs in the household
   let pendingGuests = [];        // [{name, email}] added to the trip modal before save
 
+  async function findPersonByAuthUid(uid) {
+    const q = query(collection(db, 'people'), where('authUid', '==', uid));
+    const snap = await getDocs(q);
+    if (snap.empty) return null;
+    const d = snap.docs[0];
+    return { id: d.id, ...d.data() };
+  }
+
   // ---------- Auth ----------
   window.toggleAuthMode = function () {
     document.getElementById('loginForm').classList.toggle('hidden');
@@ -370,9 +378,12 @@
     document.getElementById('appHeader').classList.remove('hidden');
     hide('authScreen');
 
-    // person doc id == auth uid for anyone who created their own account
-    const personSnap = await getDoc(doc(db, 'people', user.uid));
-    if (!personSnap.exists()) {
+    // person doc ID is NOT always the auth uid — invited members get a
+    // randomly-generated person doc when the invite is sent, then have
+    // authUid attached later when they accept. Always look up by the
+    // authUid field instead of assuming the doc ID matches.
+    const personSnap = await findPersonByAuthUid(user.uid);
+    if (!personSnap) {
       // Can happen if an earlier signup's Firestore write didn't complete.
       // Show the name field so createHousehold() can create the missing record.
       currentPerson = null;
@@ -382,7 +393,7 @@
       show('createHouseholdScreen');
       return;
     }
-    currentPerson = { id: personSnap.id, ...personSnap.data() };
+    currentPerson = personSnap;
 
     if (!currentPerson.householdId) {
       hide('dashboard');

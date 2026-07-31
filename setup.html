@@ -38,6 +38,10 @@
   <div id="formState" class="hidden">
     <h2>You're Invited!</h2>
     <p class="muted" id="inviteContext"></p>
+    <button onclick="window.acceptInviteWithGoogle()" style="background:var(--card); color:var(--text); border:1.5px solid var(--border); margin-bottom:14px;">
+      Continue with Google
+    </button>
+    <div style="text-align:center; color:var(--muted); font-size:13px; margin-bottom:14px;">or use email</div>
     <label>Name</label>
     <input type="text" id="joinName" disabled>
     <label>Email</label>
@@ -55,9 +59,9 @@
 </div>
 
 <script type="module">
-  import { firebaseConfig } from './firebase-config.js';
+  import { firebaseConfig } from './firebase-config.js?v=1';
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
-  import { getAuth, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+  import { getAuth, createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
   import {
     getFirestore, doc, getDoc, updateDoc, arrayUnion
   } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
@@ -97,27 +101,7 @@
 
     try {
       const cred = await createUserWithEmailAndPassword(auth, invite.email, password);
-
-      // Link the auth account to the existing person doc (created when the invite was sent)
-      await updateDoc(doc(db, 'people', invite.personId), {
-        authUid: cred.user.uid
-      });
-
-      if (invite.type === 'household') {
-        await updateDoc(doc(db, 'households', invite.targetId), {
-          memberUids: arrayUnion(cred.user.uid)
-        });
-      } else if (invite.type === 'trip') {
-        await updateDoc(doc(db, 'trips', invite.targetId), {
-          attendeeUids: arrayUnion(cred.user.uid)
-        });
-      }
-
-      await updateDoc(doc(db, 'invites', token), { used: true });
-
-      hide('formState');
-      show('successState');
-      setTimeout(() => { window.location.href = 'index.html'; }, 1500);
+      await linkInviteToUser(cred.user);
     } catch (e) {
       errEl.textContent = e.code && e.code.includes('email-already-in-use')
         ? 'An account already exists with this email — try logging in from the dashboard instead.'
@@ -125,6 +109,48 @@
       errEl.classList.remove('hidden');
     }
   };
+
+  window.acceptInviteWithGoogle = async function () {
+    const errEl = document.getElementById('joinError');
+    errEl.classList.add('hidden');
+    const provider = new GoogleAuthProvider();
+    try {
+      const result = await signInWithPopup(auth, provider);
+      if (result.user.email.toLowerCase() !== invite.email.toLowerCase()) {
+        await signOut(auth);
+        errEl.textContent = `This invite is for ${invite.email}. You signed in with ${result.user.email} — please use the matching Google account.`;
+        errEl.classList.remove('hidden');
+        return;
+      }
+      await linkInviteToUser(result.user);
+    } catch (e) {
+      errEl.textContent = 'Google sign-in failed. Please try again.';
+      errEl.classList.remove('hidden');
+    }
+  };
+
+  async function linkInviteToUser(user) {
+    // Link the auth account to the existing person doc (created when the invite was sent)
+    await updateDoc(doc(db, 'people', invite.personId), {
+      authUid: user.uid
+    });
+
+    if (invite.type === 'household') {
+      await updateDoc(doc(db, 'households', invite.targetId), {
+        memberUids: arrayUnion(user.uid)
+      });
+    } else if (invite.type === 'trip') {
+      await updateDoc(doc(db, 'trips', invite.targetId), {
+        attendeeUids: arrayUnion(user.uid)
+      });
+    }
+
+    await updateDoc(doc(db, 'invites', token), { used: true });
+
+    hide('formState');
+    show('successState');
+    setTimeout(() => { window.location.href = 'index.html'; }, 1500);
+  }
 
   function showInvalid() { hide('loadingState'); show('invalidState'); }
   function show(id) { document.getElementById(id).classList.remove('hidden'); }

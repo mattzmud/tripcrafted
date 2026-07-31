@@ -162,6 +162,10 @@
   <!-- AUTH SCREEN -->
   <div id="authScreen" class="card">
     <h2>TripCrafted</h2>
+    <button class="btn-secondary" style="width:100%; margin-bottom:14px;" onclick="window.signInWithGoogle()">
+      Continue with Google
+    </button>
+    <div style="text-align:center; color:var(--muted); font-size:13px; margin-bottom:14px;">or use email</div>
     <div id="loginForm">
       <label>Email</label>
       <input type="email" id="loginEmail" placeholder="you@example.com">
@@ -274,11 +278,11 @@
 </div>
 
 <script type="module">
-  import { firebaseConfig, WORKER_URL, TRIP_THEMES } from './firebase-config.js';
+  import { firebaseConfig, WORKER_URL, TRIP_THEMES } from './firebase-config.js?v=1';
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
   import {
     getAuth, onAuthStateChanged, signInWithEmailAndPassword,
-    createUserWithEmailAndPassword, signOut
+    createUserWithEmailAndPassword, signOut, GoogleAuthProvider, signInWithPopup
   } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
   import {
     getFirestore, collection, doc, setDoc, addDoc, getDoc, getDocs,
@@ -359,6 +363,18 @@
     await signOut(auth);
   };
 
+  window.signInWithGoogle = async function () {
+    const provider = new GoogleAuthProvider();
+    const errEl = document.getElementById('authError');
+    errEl.classList.add('hidden');
+    try {
+      await signInWithPopup(auth, provider);
+    } catch (e) {
+      errEl.textContent = 'Google sign-in failed. Please try again.';
+      errEl.classList.remove('hidden');
+    }
+  };
+
   function friendlyAuthError(e) {
     const code = e.code || '';
     if (code.includes('wrong-password') || code.includes('invalid-credential')) return 'Incorrect email or password.';
@@ -389,7 +405,9 @@
       currentPerson = null;
       hide('dashboard');
       document.getElementById('yourNameLabel').classList.remove('hidden');
-      document.getElementById('yourNameInput').classList.remove('hidden');
+      const nameInput = document.getElementById('yourNameInput');
+      nameInput.classList.remove('hidden');
+      if (!nameInput.value && user.displayName) nameInput.value = user.displayName;
       show('createHouseholdScreen');
       return;
     }

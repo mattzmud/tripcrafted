@@ -39,9 +39,26 @@
   header .logo { font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 20px; color: var(--primary); text-decoration: none; }
   header nav a { margin-left: 16px; color: var(--muted); text-decoration: none; font-weight: 600; font-size: 14px; }
   main { max-width: 720px; margin: 0 auto; padding: 24px 20px; }
-  .trip-header { margin-bottom: 20px; }
-  .trip-header h2 { margin: 0 0 4px 0; font-size: 26px; }
-  .trip-header .dates { color: var(--muted); font-size: 14px; }
+  .trip-header-card {
+    background: linear-gradient(135deg, var(--primary), var(--secondary));
+    color: white;
+    border-radius: 20px;
+    padding: 24px 22px;
+    margin-bottom: 24px;
+  }
+  .trip-header-card h2 { margin: 0 0 4px 0; font-size: 26px; color: white; }
+  .trip-header-card .dates { color: rgba(255,255,255,0.85); font-size: 14px; }
+  .trip-attendees { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+  .attendee-chip {
+    background: rgba(255,255,255,0.2); color: white; font-size: 13px;
+    padding: 4px 12px; border-radius: 16px; font-weight: 600;
+  }
+  .trip-lodging { margin-top: 12px; }
+  .trip-lodging a {
+    color: white; font-size: 14px; font-weight: 700; text-decoration: none;
+    background: rgba(255,255,255,0.2); padding: 6px 14px; border-radius: 8px; display: inline-block;
+  }
+  .trip-lodging a:hover { background: rgba(255,255,255,0.3); }
   .tabs { display: flex; gap: 8px; margin-bottom: 20px; border-bottom: 1px solid var(--border); }
   .tab-btn {
     background: none; border: none; padding: 10px 4px; margin-right: 16px;
@@ -147,13 +164,19 @@
 
 <header>
   <a href="index.html" class="logo">🧭 TripCrafted</a>
-  <nav><a href="index.html">Dashboard</a></nav>
+  <nav>
+    <a href="index.html">Dashboard</a>
+    <a href="household.html">Household</a>
+    <a href="#" onclick="window.doLogout(); return false;">Log out</a>
+  </nav>
 </header>
 
 <main>
-  <div class="trip-header">
+  <div class="trip-header-card">
     <h2 id="tripName">Loading...</h2>
     <div class="dates" id="tripDates"></div>
+    <div class="trip-attendees" id="tripAttendees"></div>
+    <div class="trip-lodging" id="tripLodging"></div>
   </div>
 
   <div class="tabs">
@@ -300,7 +323,7 @@
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
-  import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+  import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
   import {
     getFirestore, collection, doc, getDoc, getDocs, addDoc, updateDoc, deleteDoc,
     query, where, serverTimestamp
@@ -361,11 +384,31 @@
     attendeesById = {};
     attendees.forEach(a => attendeesById[a.id] = a);
 
+    renderHeaderExtras();
+
     populateMealDayOptions();
     await loadMeals();
     await loadItems();
     renderAll();
   });
+
+  function renderHeaderExtras() {
+    document.getElementById('tripAttendees').innerHTML = attendees
+      .map(a => `<span class="attendee-chip">${escapeHtml(a.name)}</span>`)
+      .join('');
+
+    const lodgingEl = document.getElementById('tripLodging');
+    if (trip.lodgingLink) {
+      lodgingEl.innerHTML = `<a href="${escapeHtml(trip.lodgingLink)}" target="_blank" rel="noopener">🏠 Lodging</a>`;
+    } else {
+      lodgingEl.innerHTML = '';
+    }
+  }
+
+  window.doLogout = async function () {
+    await signOut(auth);
+    window.location.href = 'index.html';
+  };
 
   function applyTheme(themeKey) {
     const theme = TRIP_THEMES[themeKey] || TRIP_THEMES.default;

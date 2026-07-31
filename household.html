@@ -76,7 +76,7 @@
   import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
   import {
     getFirestore, doc, getDoc, getDocs, addDoc, setDoc, updateDoc, collection,
-    query, where, arrayUnion, serverTimestamp
+    query, where, arrayUnion, arrayRemove, serverTimestamp
   } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
   import { VERSION } from './version.js';
   const { firebaseConfig, WORKER_URL } = await import(`./firebase-config.js?v=${VERSION}`);
@@ -134,11 +134,29 @@
           ${p.isProfileOnly ? '<span class="badge" style="background:var(--muted);">No Account</span>' : ''}
           ${isPending ? '<span class="badge" style="background:#D97706;">Invite Pending</span>' : ''}
         </div>
-        <span class="member-tag">${p.email || ''}</span>
+        <div style="display:flex; align-items:center; gap:10px;">
+          <span class="member-tag">${p.email || ''}</span>
+        </div>
       `;
+      if (isManager && !isMgr) {
+        const removeBtn = document.createElement('button');
+        removeBtn.textContent = 'Remove';
+        removeBtn.style.cssText = 'background:transparent; color:#C0392B; padding:4px 8px; font-size:13px; font-family:"Nunito Sans",sans-serif;';
+        removeBtn.onclick = () => window.removeMember(pid, p.name, p.authUid || null);
+        row.lastElementChild.appendChild(removeBtn);
+      }
       listEl.appendChild(row);
     });
   }
+
+  window.removeMember = async function (personId, name, authUid) {
+    if (!confirm(`Remove ${name} from the household? They'll keep their account but will no longer be part of this household.`)) return;
+    const updates = { memberIds: arrayRemove(personId) };
+    if (authUid) updates.memberUids = arrayRemove(authUid);
+    await updateDoc(doc(db, 'households', currentHousehold.id), updates);
+    await updateDoc(doc(db, 'people', personId), { householdId: null });
+    await loadHousehold(currentHousehold.id);
+  };
 
   window.sendMemberInvite = async function () {
     const errEl = document.getElementById('inviteError');

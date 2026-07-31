@@ -154,6 +154,7 @@
   <a href="index.html" style="text-decoration:none;"><div class="logo">🧭 TripCrafted</div></a>
   <nav>
     <a href="household.html">Household</a>
+    <a href="profile.html">Profile</a>
     <a href="#" onclick="window.doLogout(); return false;">Log out</a>
   </nav>
 </header>
@@ -292,6 +293,7 @@
   } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
   import { VERSION } from './version.js';
   const { firebaseConfig, WORKER_URL, TRIP_THEMES } = await import(`./firebase-config.js?v=${VERSION}`);
+  const { resolvePersonForInvite } = await import(`./invite-helpers.js?v=${VERSION}`);
 
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
@@ -345,7 +347,7 @@
       const cred = await createUserWithEmailAndPassword(auth, email, password);
       // Create a person doc with no household yet — createHousehold() will attach it
       await setDoc(doc(db, 'people', cred.user.uid), {
-        name, email, authUid: cred.user.uid,
+        name, email, emailLower: email.toLowerCase(), authUid: cred.user.uid,
         householdId: null, isProfileOnly: false,
         createdAt: serverTimestamp()
       });
@@ -447,7 +449,7 @@
         return;
       }
       await setDoc(doc(db, 'people', currentUser.uid), {
-        name: yourName, email: currentUser.email, authUid: currentUser.uid,
+        name: yourName, email: currentUser.email, emailLower: (currentUser.email || '').toLowerCase(), authUid: currentUser.uid,
         householdId: null, isProfileOnly: false,
         createdAt: serverTimestamp()
       }, { merge: true });
@@ -670,18 +672,6 @@
       }
     });
 
-    // Create person docs for any newly-added guests (trip-only, no household)
-    const guestPersonRecords = [];
-    for (const guest of pendingGuests) {
-      const guestRef = await addDoc(collection(db, 'people'), {
-        name: guest.name, email: guest.email, authUid: null,
-        householdId: null, isProfileOnly: false,
-        createdAt: serverTimestamp()
-      });
-      attendeeIds.push(guestRef.id);
-      guestPersonRecords.push({ id: guestRef.id, ...guest });
-    }
-
     const tripRef = await addDoc(collection(db, 'trips'), {
       name, destination, startDate, endDate, theme: selectedTheme,
       lodgingLink, notes,
@@ -692,9 +682,24 @@
       createdAt: serverTimestamp()
     });
 
-    // Send invites to trip-only guests
-    for (const guest of guestPersonRecords) {
-      await sendTripInvite(guest, tripRef.id, name);
+    // Resolve each newly-added guest — reusing an existing person record
+    // for their email if one already exists (e.g. they were already
+    // invited to a household elsewhere), instead of creating a duplicate.
+    for (const guest of pendingGuests) {
+      const { personId, authUid, alreadyLinked } = await resolvePersonForInvite(db, {
+        name: guest.name, email: guest.email, householdId: null,
+        context: { type: 'trip', id: tripRef.id }
+      });
+
+      if (alreadyLinked) {
+        await updateDoc(tripRef, {
+          attendees: arrayUnion(personId),
+          attendeeUids: arrayUnion(authUid)
+        });
+      } else {
+        await updateDoc(tripRef, { attendees: arrayUnion(personId) });
+        await sendTripInvite({ id: personId, name: guest.name, email: guest.email }, tripRef.id, name);
+      }
     }
 
     closeTripModal();

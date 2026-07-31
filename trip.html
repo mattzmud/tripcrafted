@@ -199,6 +199,15 @@
   .activity-name { font-weight: 700; font-size: 16px; margin: 2px 0; }
   .activity-details { font-size: 14px; color: var(--muted); white-space: pre-wrap; }
 
+  .calendar-day { margin-bottom: 12px; }
+  .calendar-entry { padding: 6px 0; font-size: 14px; border-bottom: 1px dashed var(--border); }
+  .calendar-entry:last-child { border-bottom: none; }
+  .calendar-entry-tag {
+    font-weight: 700; color: var(--secondary); margin-right: 8px;
+    text-transform: uppercase; font-size: 11px; letter-spacing: 0.03em;
+  }
+  .calendar-empty { color: var(--muted); font-size: 13px; font-style: italic; padding: 4px 0; }
+
   .itinerary-print { display: none; }
   .itinerary-print h1 { font-size: 24px; margin-bottom: 2px; }
   .itinerary-print .itin-sub { color: var(--muted); font-size: 14px; margin: 2px 0; }
@@ -258,7 +267,8 @@
   </div>
 
   <div class="tabs">
-    <button class="tab-btn active" data-tab="meals" onclick="window.switchTab('meals')">Meals</button>
+    <button class="tab-btn active" data-tab="calendar" onclick="window.switchTab('calendar')">Calendar</button>
+    <button class="tab-btn" data-tab="meals" onclick="window.switchTab('meals')">Meals</button>
     <button class="tab-btn" data-tab="supplies" onclick="window.switchTab('supplies')">Supplies</button>
     <button class="tab-btn" data-tab="packing" onclick="window.switchTab('packing')">Packing</button>
     <button class="tab-btn" data-tab="activities" onclick="window.switchTab('activities')">Activities</button>
@@ -266,8 +276,16 @@
     <button class="tab-btn" data-tab="shopping" onclick="window.switchTab('shopping')">Shopping List</button>
   </div>
 
+  <!-- CALENDAR -->
+  <div class="tab-panel active" id="tab-calendar">
+    <div class="section-header">
+      <h3 style="margin:0;">Trip Calendar</h3>
+    </div>
+    <div id="calendarList"></div>
+  </div>
+
   <!-- MEALS -->
-  <div class="tab-panel active" id="tab-meals">
+  <div class="tab-panel" id="tab-meals">
     <div class="section-header">
       <h3 style="margin:0;">Meals</h3>
       <button class="btn-primary" onclick="window.openMealModal()">+ Add Meal</button>
@@ -799,6 +817,7 @@
     renderPackingList();
     renderActivities();
     renderTodoList();
+    renderCalendar();
   }
 
   // ============================================================
@@ -1738,6 +1757,42 @@
     return `${h12}:${String(m).padStart(2, '0')} ${period}`;
   }
 
+  // ---------- Calendar ----------
+  function renderCalendar() {
+    const listEl = document.getElementById('calendarList');
+    if (!listEl || !trip) return;
+    listEl.innerHTML = '';
+    const slotOrder = { breakfast: 0, lunch: 1, dinner: 2, snack: 3, other: 4 };
+
+    dateRange(trip.startDate, trip.endDate).forEach(day => {
+      const dayMeals = meals.filter(m => m.day === day).slice().sort((a, b) => (slotOrder[a.slot] ?? 9) - (slotOrder[b.slot] ?? 9));
+      const dayActivities = activities.filter(a => a.day === day).slice().sort((a, b) => (a.time || '99:99').localeCompare(b.time || '99:99'));
+
+      const dayCard = document.createElement('div');
+      dayCard.className = 'card calendar-day';
+      let html = `<div class="day-label">${formatDayLabel(day)}</div>`;
+
+      if (dayMeals.length === 0 && dayActivities.length === 0) {
+        html += `<div class="calendar-empty">Nothing planned yet</div>`;
+      } else {
+        dayMeals.forEach(m => {
+          if (m.locationType === 'home') {
+            const cookNames = (m.cooks || []).map(pid => attendeesById[pid]?.name).filter(Boolean).join(', ');
+            html += `<div class="calendar-entry"><span class="calendar-entry-tag">${capitalize(m.slot)}</span>${escapeHtml(m.name)}<span class="meal-meta"> — Home${cookNames ? `, cooking: ${escapeHtml(cookNames)}` : ''}</span></div>`;
+          } else {
+            html += `<div class="calendar-entry"><span class="calendar-entry-tag">${capitalize(m.slot)}</span>${escapeHtml(m.name)}${m.address ? ` — <a class="directions-link" target="_blank" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(m.address)}">Directions</a>` : ''}</div>`;
+          }
+        });
+        dayActivities.forEach(a => {
+          html += `<div class="calendar-entry"><span class="calendar-entry-tag">${a.time ? formatTime(a.time) : 'Activity'}</span>${escapeHtml(a.name)}${a.details ? `<span class="meal-meta"> — ${escapeHtml(a.details)}</span>` : ''}</div>`;
+        });
+      }
+
+      dayCard.innerHTML = html;
+      listEl.appendChild(dayCard);
+    });
+  }
+
   window.openActivityModal = function (activityId) {
     editingActivityId = activityId || null;
     document.getElementById('activityError').classList.add('hidden');
@@ -1786,6 +1841,7 @@
     window.closeActivityModal();
     await loadActivities();
     renderActivities();
+    renderCalendar();
   };
 
   window.deleteActivity = async function (activityId) {
@@ -1793,6 +1849,7 @@
     await deleteDoc(doc(db, 'trips', tripId, 'activities', activityId));
     await loadActivities();
     renderActivities();
+    renderCalendar();
   };
 
   // ---------- To-Do ----------

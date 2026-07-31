@@ -480,7 +480,7 @@
 
   // ---------- Trips ----------
   async function loadTrips() {
-    const q = query(collection(db, 'trips'), where('attendees', 'array-contains', currentPerson.id));
+    const q = query(collection(db, 'trips'), where('attendeeUids', 'array-contains', currentUser.uid));
     const snap = await getDocs(q);
     const trips = [];
     snap.forEach(d => trips.push({ id: d.id, ...d.data() }));

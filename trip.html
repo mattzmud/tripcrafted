@@ -251,6 +251,7 @@
   <nav>
     <a href="index.html">Dashboard</a>
     <a href="household.html">Household</a>
+    <a href="profile.html">Profile</a>
     <a href="#" onclick="window.doLogout(); return false;">Log out</a>
   </nav>
 </header>
@@ -262,6 +263,7 @@
     <div class="dates" id="tripDestination" style="margin-top:2px;"></div>
     <div class="trip-attendees" id="tripAttendees"></div>
     <div class="trip-lodging" id="tripLodging"></div>
+    <button class="edit-trip-btn" onclick="window.openAddHouseholdModal()">+ Add From My Household</button>
     <button class="edit-trip-btn hidden" id="editTripBtn" onclick="window.openEditTripModal()">Edit Trip</button>
     <button class="edit-trip-btn" onclick="window.printItinerary()">🖨️ Print Itinerary</button>
   </div>
@@ -502,6 +504,21 @@
   </div>
 </div>
 
+<!-- ADD FROM MY HOUSEHOLD MODAL -->
+<div class="modal-overlay" id="addHouseholdModalOverlay">
+  <div class="modal">
+    <h2>Add From Your Household</h2>
+    <p style="color:var(--muted); font-size:14px; margin-top:0;">Adds anyone from your household to this trip — including household members without their own account.</p>
+    <div id="addHouseholdPicker"></div>
+    <div id="addHouseholdEmpty" class="empty-state hidden">Everyone in your household is already on this trip.</div>
+    <div id="addHouseholdError" class="error-text hidden"></div>
+    <div class="row" style="margin-top:20px;">
+      <button class="btn-text" onclick="window.closeAddHouseholdModal()">Cancel</button>
+      <button class="btn-primary" style="flex:1;" onclick="window.saveAddHousehold()">Add Selected</button>
+    </div>
+  </div>
+</div>
+
 <!-- EDIT TRIP MODAL -->
 <div class="modal-overlay" id="editTripModalOverlay">
   <div class="modal">
@@ -619,10 +636,11 @@
   import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
   import {
     getFirestore, collection, doc, getDoc, getDocs, addDoc, updateDoc, deleteDoc,
-    query, where, serverTimestamp
+    query, where, arrayUnion, serverTimestamp
   } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
   import { VERSION } from './version.js';
   const { firebaseConfig, TRIP_THEMES, WORKER_URL } = await import(`./firebase-config.js?v=${VERSION}`);
+  const { resolvePersonForInvite } = await import(`./invite-helpers.js?v=${VERSION}`);
 
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
@@ -1528,6 +1546,55 @@
     renderPackingList();
   };
 
+  // ---------- Add From My Household ----------
+  window.openAddHouseholdModal = function () {
+    document.getElementById('addHouseholdError').classList.add('hidden');
+    const notAttending = householdRoster.filter(p => !trip.attendees.includes(p.id));
+    const pickerEl = document.getElementById('addHouseholdPicker');
+    const emptyEl = document.getElementById('addHouseholdEmpty');
+    if (notAttending.length === 0) {
+      pickerEl.innerHTML = '';
+      emptyEl.classList.remove('hidden');
+    } else {
+      emptyEl.classList.add('hidden');
+      pickerEl.innerHTML = notAttending.map(p => `
+        <div class="checkbox-row">
+          <input type="checkbox" class="add-household-cb" value="${p.id}">
+          <label style="text-transform:none; font-size:15px; color:var(--text); margin:0;">
+            ${escapeHtml(p.name)}${p.isProfileOnly ? ' <span style="color:var(--muted); font-size:12px;">(no account)</span>' : ''}
+          </label>
+        </div>
+      `).join('');
+    }
+    document.getElementById('addHouseholdModalOverlay').classList.add('open');
+  };
+
+  window.closeAddHouseholdModal = function () {
+    document.getElementById('addHouseholdModalOverlay').classList.remove('open');
+  };
+
+  window.saveAddHousehold = async function () {
+    const errEl = document.getElementById('addHouseholdError');
+    errEl.classList.add('hidden');
+    const checked = Array.from(document.querySelectorAll('.add-household-cb:checked'));
+    if (checked.length === 0) {
+      errEl.textContent = 'Select at least one person to add.';
+      errEl.classList.remove('hidden');
+      return;
+    }
+    const idsToAdd = checked.map(cb => cb.value);
+    const uidsToAdd = idsToAdd
+      .map(pid => householdRoster.find(p => p.id === pid)?.authUid)
+      .filter(Boolean);
+
+    const updates = { attendees: arrayUnion(...idsToAdd) };
+    if (uidsToAdd.length) updates.attendeeUids = arrayUnion(...uidsToAdd);
+    await updateDoc(doc(db, 'trips', tripId), updates);
+
+    window.closeAddHouseholdModal();
+    window.location.reload();
+  };
+
   // ---------- Edit Trip ----------
   window.openEditTripModal = function () {
     document.getElementById('editTripError').classList.add('hidden');
@@ -1673,16 +1740,20 @@
       return;
     }
 
-    // Create person docs for any newly-invited guests
+    // Resolve each newly-invited guest — reusing an existing person record
+    // for their email if one already exists, instead of creating a duplicate.
     const newGuestRecords = [];
     for (const guest of editPendingGuests) {
-      const guestRef = await addDoc(collection(db, 'people'), {
-        name: guest.name, email: guest.email, authUid: null,
-        householdId: null, isProfileOnly: false,
-        createdAt: serverTimestamp()
+      const { personId, authUid, alreadyLinked } = await resolvePersonForInvite(db, {
+        name: guest.name, email: guest.email, householdId: null,
+        context: { type: 'trip', id: tripId }
       });
-      editAttendeeIds.push(guestRef.id);
-      newGuestRecords.push({ id: guestRef.id, ...guest });
+      editAttendeeIds.push(personId);
+      if (alreadyLinked) {
+        attendeesById[personId] = attendeesById[personId] || { name: guest.name, authUid };
+      } else {
+        newGuestRecords.push({ id: personId, name: guest.name, email: guest.email });
+      }
     }
 
     const attendeeUids = editAttendeeIds

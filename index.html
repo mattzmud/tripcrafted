@@ -151,7 +151,7 @@
 <body>
 
 <header id="appHeader" class="hidden">
-  <div class="logo">🧭 TripCrafted</div>
+  <a href="index.html" style="text-decoration:none;"><div class="logo">🧭 TripCrafted</div></a>
   <nav>
     <a href="household.html">Household</a>
     <a href="#" onclick="window.doLogout(); return false;">Log out</a>
@@ -193,8 +193,11 @@
   <div id="createHouseholdScreen" class="card hidden">
     <h2>Set Up Your Household</h2>
     <p style="color:var(--muted); font-size:14px;">This is the group you'll invite trip companions from — you can add family members and invite others afterward.</p>
+    <label id="yourNameLabel" class="hidden">Your Name</label>
+    <input type="text" id="yourNameInput" class="hidden" placeholder="Emily Smith">
     <label>Household Name</label>
     <input type="text" id="householdNameInput" placeholder="The Smith Household">
+    <div id="householdError" class="error-text hidden"></div>
     <button class="btn-primary" onclick="window.createHousehold()">Create Household</button>
   </div>
 
@@ -331,6 +334,14 @@
         createdAt: serverTimestamp()
       });
     } catch (e) {
+      if (e.code && e.code.includes('email-already-in-use')) {
+        window.toggleAuthMode();
+        document.getElementById('loginEmail').value = email;
+        const loginErr = document.getElementById('authError');
+        loginErr.textContent = 'An account already exists with that email — log in below.';
+        loginErr.classList.remove('hidden');
+        return;
+      }
       errEl.textContent = friendlyAuthError(e);
       errEl.classList.remove('hidden');
     }
@@ -362,8 +373,12 @@
     // person doc id == auth uid for anyone who created their own account
     const personSnap = await getDoc(doc(db, 'people', user.uid));
     if (!personSnap.exists()) {
-      // Shouldn't normally happen (setup.html / signup create it), but handle gracefully
+      // Can happen if an earlier signup's Firestore write didn't complete.
+      // Show the name field so createHousehold() can create the missing record.
+      currentPerson = null;
       hide('dashboard');
+      document.getElementById('yourNameLabel').classList.remove('hidden');
+      document.getElementById('yourNameInput').classList.remove('hidden');
       show('createHouseholdScreen');
       return;
     }
@@ -382,8 +397,33 @@
   });
 
   window.createHousehold = async function () {
+    const errEl = document.getElementById('householdError');
+    errEl.classList.add('hidden');
     const name = document.getElementById('householdNameInput').value.trim();
-    if (!name) return;
+    if (!name) {
+      errEl.textContent = 'Please enter a household name.';
+      errEl.classList.remove('hidden');
+      return;
+    }
+
+    if (!currentPerson) {
+      const yourName = document.getElementById('yourNameInput').value.trim();
+      if (!yourName) {
+        errEl.textContent = 'Please enter your name.';
+        errEl.classList.remove('hidden');
+        return;
+      }
+      await setDoc(doc(db, 'people', currentUser.uid), {
+        name: yourName, email: currentUser.email, authUid: currentUser.uid,
+        householdId: null, isProfileOnly: false,
+        createdAt: serverTimestamp()
+      }, { merge: true });
+      currentPerson = {
+        id: currentUser.uid, name: yourName, email: currentUser.email,
+        authUid: currentUser.uid, householdId: null, isProfileOnly: false
+      };
+    }
+
     const hhRef = await addDoc(collection(db, 'households'), {
       name, managerId: currentPerson.id,
       memberIds: [currentPerson.id],

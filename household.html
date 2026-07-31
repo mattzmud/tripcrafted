@@ -37,7 +37,7 @@
 <body>
 
 <header>
-  <div class="logo">🧭 TripCrafted</div>
+  <a href="index.html" style="text-decoration:none;"><div class="logo">🧭 TripCrafted</div></a>
   <nav>
     <a href="index.html">Dashboard</a>
   </nav>
@@ -119,11 +119,13 @@
       const row = document.createElement('div');
       row.className = 'member-row';
       const isMgr = pid === currentHousehold.managerId;
+      const isPending = !p.isProfileOnly && !p.authUid;
       row.innerHTML = `
         <div>
           <span class="member-name">${escapeHtml(p.name)}</span>
           ${isMgr ? '<span class="badge">Manager</span>' : ''}
           ${p.isProfileOnly ? '<span class="badge" style="background:var(--muted);">No Account</span>' : ''}
+          ${isPending ? '<span class="badge" style="background:#D97706;">Invite Pending</span>' : ''}
         </div>
         <span class="member-tag">${p.email || ''}</span>
       `;

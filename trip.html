@@ -166,6 +166,24 @@
   .person-pill.active { background: var(--primary); border-color: var(--primary); color: white; }
   .packed .shop-item-name, .pack-item.packed .shop-item-name { text-decoration: line-through; color: var(--muted); }
   .auto-tag { font-size: 11px; color: var(--muted); font-style: italic; margin-left: 6px; }
+  .theme-swatches { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .swatch {
+    width: 64px; padding: 8px 4px; border-radius: 10px; border: 2px solid transparent;
+    cursor: pointer; text-align: center; font-size: 11px; font-weight: 700;
+  }
+  .swatch.selected { border-color: var(--text); }
+  .swatch-color { height: 24px; border-radius: 6px; margin-bottom: 4px; }
+  .edit-trip-btn {
+    background: rgba(255,255,255,0.2); color: white; border: none; border-radius: 8px;
+    padding: 6px 14px; font-size: 13px; font-weight: 700; cursor: pointer; margin-top: 14px;
+  }
+  .edit-trip-btn:hover { background: rgba(255,255,255,0.3); }
+  .guest-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 20px; padding: 4px 10px; font-size: 13px; margin: 4px 4px 0 0;
+  }
+  .guest-chip button { padding: 0; background: none; color: var(--muted); font-size: 14px; line-height: 1; }
 </style>
 </head>
 <body>
@@ -186,6 +204,7 @@
     <div class="dates" id="tripDestination" style="margin-top:2px;"></div>
     <div class="trip-attendees" id="tripAttendees"></div>
     <div class="trip-lodging" id="tripLodging"></div>
+    <button class="edit-trip-btn hidden" id="editTripBtn" onclick="window.openEditTripModal()">Edit Trip</button>
   </div>
 
   <div class="tabs">
@@ -380,6 +399,59 @@
   </div>
 </div>
 
+<!-- EDIT TRIP MODAL -->
+<div class="modal-overlay" id="editTripModalOverlay">
+  <div class="modal">
+    <h2>Edit Trip</h2>
+    <label>Trip Name</label>
+    <input type="text" id="editTripName">
+
+    <label>Destination / City</label>
+    <input type="text" id="editTripDestination">
+
+    <div class="row">
+      <div style="flex:1;">
+        <label>Start Date</label>
+        <input type="date" id="editTripStart">
+      </div>
+      <div style="flex:1;">
+        <label>End Date</label>
+        <input type="date" id="editTripEnd">
+      </div>
+    </div>
+
+    <label>Theme</label>
+    <div class="theme-swatches" id="editThemeSwatches"></div>
+
+    <label>Lodging Link</label>
+    <input type="text" id="editTripLodging">
+
+    <label>Notes</label>
+    <textarea id="editTripNotes"></textarea>
+
+    <label>Attendees</label>
+    <div id="editAttendeeChips"></div>
+
+    <label style="margin-top:10px;">Add From Your Household</label>
+    <div id="editHouseholdPicker"></div>
+
+    <label style="margin-top:10px;">Invite Someone Else</label>
+    <div class="row">
+      <input type="text" id="editGuestName" placeholder="Name" style="margin-bottom:0;">
+      <input type="email" id="editGuestEmail" placeholder="Email" style="margin-bottom:0;">
+      <button class="btn-secondary" onclick="window.addEditGuest()" style="white-space:nowrap;">Add</button>
+    </div>
+    <div id="editGuestChips" style="margin-top:8px;"></div>
+
+    <div id="editTripError" class="error-text hidden" style="margin-top:14px;"></div>
+
+    <div class="row" style="margin-top:20px;">
+      <button class="btn-text" onclick="window.closeEditTripModal()">Cancel</button>
+      <button class="btn-primary" style="flex:1;" onclick="window.saveEditTrip()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
   import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
@@ -388,7 +460,7 @@
     query, where, serverTimestamp
   } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
   import { VERSION } from './version.js';
-  const { firebaseConfig, TRIP_THEMES } = await import(`./firebase-config.js?v=${VERSION}`);
+  const { firebaseConfig, TRIP_THEMES, WORKER_URL } = await import(`./firebase-config.js?v=${VERSION}`);
 
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
@@ -410,8 +482,13 @@
   let editingSupplyId = null;
   let currentHousehold = null;
   let myHouseholdAttendees = [];  // attendees on this trip who are in your household
+  let householdRoster = [];       // ALL members of your household (not just those on this trip)
   let activePackingTarget = null; // {type:'person', id} or {type:'household', id}
   let editingPackingId = null;
+  let editAttendeeIds = [];       // working copy while the Edit Trip modal is open
+  let editAttendeeUids = {};      // personId -> authUid, for building attendeeUids on save
+  let editPendingGuests = [];     // newly invited trip-only guests, not yet saved
+  let selectedEditTheme = 'default';
 
   if (!tripId) {
     window.location.href = 'index.html';
@@ -452,9 +529,15 @@
       if (hhSnap.exists()) {
         currentHousehold = { id: hhSnap.id, ...hhSnap.data() };
         myHouseholdAttendees = attendees.filter(a => currentHousehold.memberIds.includes(a.id));
+        const rosterSnaps = await Promise.all(currentHousehold.memberIds.map(pid => getDoc(doc(db, 'people', pid))));
+        householdRoster = rosterSnaps.filter(s => s.exists()).map(s => ({ id: s.id, ...s.data() }));
       }
     }
     if (myHouseholdAttendees.length === 0) myHouseholdAttendees = [currentPerson];
+
+    if (trip.ownerUid === currentUser.uid) {
+      document.getElementById('editTripBtn').classList.remove('hidden');
+    }
 
     renderHeaderExtras();
 
@@ -1247,6 +1330,182 @@
     window.closePackingModal();
     await loadItems();
     renderPackingList();
+  };
+
+  // ---------- Edit Trip ----------
+  window.openEditTripModal = function () {
+    document.getElementById('editTripError').classList.add('hidden');
+    document.getElementById('editTripName').value = trip.name || '';
+    document.getElementById('editTripDestination').value = trip.destination || '';
+    document.getElementById('editTripStart').value = trip.startDate || '';
+    document.getElementById('editTripEnd').value = trip.endDate || '';
+    document.getElementById('editTripLodging').value = trip.lodgingLink || '';
+    document.getElementById('editTripNotes').value = trip.notes || '';
+
+    selectedEditTheme = trip.theme || 'default';
+    renderEditThemeSwatches();
+
+    editAttendeeIds = [...trip.attendees];
+    editPendingGuests = [];
+    renderEditAttendeeChips();
+    renderEditHouseholdPicker();
+    renderEditGuestChips();
+
+    document.getElementById('editTripModalOverlay').classList.add('open');
+  };
+  window.closeEditTripModal = function () {
+    document.getElementById('editTripModalOverlay').classList.remove('open');
+  };
+
+  function renderEditThemeSwatches() {
+    const el = document.getElementById('editThemeSwatches');
+    el.innerHTML = '';
+    Object.entries(TRIP_THEMES).forEach(([key, theme]) => {
+      const sw = document.createElement('div');
+      sw.className = 'swatch' + (key === selectedEditTheme ? ' selected' : '');
+      sw.innerHTML = `<div class="swatch-color" style="background:linear-gradient(135deg, ${theme.primary}, ${theme.secondary});"></div>${theme.label}`;
+      sw.onclick = () => { selectedEditTheme = key; renderEditThemeSwatches(); };
+      el.appendChild(sw);
+    });
+  }
+
+  function lookupPersonName(pid) {
+    return attendeesById[pid]?.name || householdRoster.find(p => p.id === pid)?.name || 'Unknown';
+  }
+
+  function renderEditAttendeeChips() {
+    document.getElementById('editAttendeeChips').innerHTML = editAttendeeIds.map(pid => {
+      const isOwner = pid === trip.ownerId;
+      return `<span class="guest-chip">${escapeHtml(lookupPersonName(pid))}${isOwner ? ' <em style="color:var(--muted);">(owner)</em>' : ` <button type="button" onclick="window.removeEditAttendee('${pid}')">✕</button>`}</span>`;
+    }).join('');
+  }
+
+  function renderEditHouseholdPicker() {
+    const notAttending = householdRoster.filter(p => !editAttendeeIds.includes(p.id));
+    const el = document.getElementById('editHouseholdPicker');
+    if (notAttending.length === 0) {
+      el.innerHTML = '<div style="font-size:13px; color:var(--muted);">Everyone in your household is already on this trip.</div>';
+      return;
+    }
+    el.innerHTML = notAttending.map(p => `
+      <div class="checkbox-row">
+        <input type="checkbox" onchange="window.addEditHouseholdMember('${p.id}')">
+        <label style="text-transform:none; font-size:15px; color:var(--text); margin:0;">${escapeHtml(p.name)}</label>
+      </div>
+    `).join('');
+  }
+
+  window.addEditHouseholdMember = function (personId) {
+    if (!editAttendeeIds.includes(personId)) editAttendeeIds.push(personId);
+    renderEditAttendeeChips();
+    renderEditHouseholdPicker();
+  };
+
+  window.removeEditAttendee = function (personId) {
+    if (personId === trip.ownerId) return;
+    editAttendeeIds = editAttendeeIds.filter(id => id !== personId);
+    renderEditAttendeeChips();
+    renderEditHouseholdPicker();
+  };
+
+  window.addEditGuest = function () {
+    const name = document.getElementById('editGuestName').value.trim();
+    const email = document.getElementById('editGuestEmail').value.trim();
+    if (!name || !email) return;
+    editPendingGuests.push({ name, email });
+    document.getElementById('editGuestName').value = '';
+    document.getElementById('editGuestEmail').value = '';
+    renderEditGuestChips();
+  };
+
+  window.removeEditGuest = function (i) {
+    editPendingGuests.splice(i, 1);
+    renderEditGuestChips();
+  };
+
+  function renderEditGuestChips() {
+    document.getElementById('editGuestChips').innerHTML = editPendingGuests.map((g, i) =>
+      `<span class="guest-chip">${escapeHtml(g.name)} <button type="button" onclick="window.removeEditGuest(${i})">✕</button></span>`
+    ).join('');
+  }
+
+  async function sendTripInviteFromEdit(person, tripName) {
+    const token = crypto.randomUUID();
+    await setDoc(doc(db, 'invites', token), {
+      type: 'trip', targetId: tripId, personId: person.id,
+      name: person.name, email: person.email,
+      invitedBy: currentPerson.name,
+      used: false, createdAt: serverTimestamp()
+    });
+    const link = `${window.location.origin}${window.location.pathname.replace('trip.html', '')}setup.html?invite=${token}`;
+    try {
+      await fetch(WORKER_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'send-invite',
+          to: person.email,
+          inviteeName: person.name,
+          inviterName: currentPerson.name,
+          context: `the trip "${tripName}"`,
+          link
+        })
+      });
+    } catch (e) {
+      console.error('Invite email failed to send:', e);
+    }
+  }
+
+  window.saveEditTrip = async function () {
+    const errEl = document.getElementById('editTripError');
+    errEl.classList.add('hidden');
+    const name = document.getElementById('editTripName').value.trim();
+    const destination = document.getElementById('editTripDestination').value.trim();
+    const startDate = document.getElementById('editTripStart').value;
+    const endDate = document.getElementById('editTripEnd').value;
+    const lodgingLink = document.getElementById('editTripLodging').value.trim();
+    const notes = document.getElementById('editTripNotes').value.trim();
+
+    if (!name || !startDate || !endDate) {
+      errEl.textContent = 'Trip name, start date, and end date are required.';
+      errEl.classList.remove('hidden');
+      return;
+    }
+    if (endDate < startDate) {
+      errEl.textContent = 'End date must be on or after the start date.';
+      errEl.classList.remove('hidden');
+      return;
+    }
+
+    // Create person docs for any newly-invited guests
+    const newGuestRecords = [];
+    for (const guest of editPendingGuests) {
+      const guestRef = await addDoc(collection(db, 'people'), {
+        name: guest.name, email: guest.email, authUid: null,
+        householdId: null, isProfileOnly: false,
+        createdAt: serverTimestamp()
+      });
+      editAttendeeIds.push(guestRef.id);
+      newGuestRecords.push({ id: guestRef.id, ...guest });
+    }
+
+    const attendeeUids = editAttendeeIds
+      .map(pid => attendeesById[pid]?.authUid || householdRoster.find(p => p.id === pid)?.authUid || null)
+      .filter(Boolean);
+
+    await updateDoc(doc(db, 'trips', tripId), {
+      name, destination, startDate, endDate, theme: selectedEditTheme,
+      lodgingLink, notes,
+      attendees: editAttendeeIds,
+      attendeeUids
+    });
+
+    for (const guest of newGuestRecords) {
+      await sendTripInviteFromEdit(guest, name);
+    }
+
+    window.closeEditTripModal();
+    window.location.reload();
   };
 </script>
 </body>

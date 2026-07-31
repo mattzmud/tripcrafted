@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Join — TripCrafted</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800&family=Nunito+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#F8F6F0; --card:#FFFFFF; --green:#4CAF50; --purple:#7C3AED;
+    --text:#1A1A2E; --muted:#6B7280; --border:#E5E0D8;
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family:'Nunito Sans', sans-serif; display:flex; align-items:center; justify-content:center; min-height:100vh; padding:20px; }
+  h1,h2,label { font-family:'Nunito', sans-serif; font-weight:800; }
+  .card { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:28px; max-width:400px; width:100%; }
+  input { width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:8px; font-size:15px; margin-top:6px; margin-bottom:14px; background:var(--bg); color:var(--text); }
+  label { font-size:13px; color:var(--muted); display:block; text-transform:uppercase; letter-spacing:0.03em; }
+  button { width:100%; font-family:'Nunito', sans-serif; font-weight:700; border:none; border-radius:8px; padding:12px 18px; font-size:15px; cursor:pointer; background:var(--green); color:white; }
+  .error-text { color:#C0392B; font-size:13px; margin-top:-8px; margin-bottom:12px; }
+  .hidden { display:none !important; }
+  .muted { color:var(--muted); font-size:14px; }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <div id="loadingState">
+    <p class="muted">Checking your invite...</p>
+  </div>
+
+  <div id="invalidState" class="hidden">
+    <h2>Invite Not Found</h2>
+    <p class="muted">This invite link is invalid or has already been used. Ask whoever invited you to send a new one.</p>
+  </div>
+
+  <div id="formState" class="hidden">
+    <h2>You're Invited!</h2>
+    <p class="muted" id="inviteContext"></p>
+    <label>Name</label>
+    <input type="text" id="joinName" disabled>
+    <label>Email</label>
+    <input type="email" id="joinEmail" disabled>
+    <label>Create a Password</label>
+    <input type="password" id="joinPassword" placeholder="At least 6 characters">
+    <div id="joinError" class="error-text hidden"></div>
+    <button onclick="window.acceptInvite()">Create Account & Join</button>
+  </div>
+
+  <div id="successState" class="hidden">
+    <h2>You're In!</h2>
+    <p class="muted">Your account has been created. Redirecting you to the dashboard...</p>
+  </div>
+</div>
+
+<script type="module">
+  import { firebaseConfig } from './firebase-config.js';
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+  import { getAuth, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+  import {
+    getFirestore, doc, getDoc, updateDoc, arrayUnion
+  } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  const params = new URLSearchParams(window.location.search);
+  const token = params.get('invite');
+  let invite = null;
+
+  (async function init() {
+    if (!token) { showInvalid(); return; }
+    const inviteSnap = await getDoc(doc(db, 'invites', token));
+    if (!inviteSnap.exists() || inviteSnap.data().used) { showInvalid(); return; }
+    invite = { id: inviteSnap.id, ...inviteSnap.data() };
+
+    document.getElementById('joinName').value = invite.name;
+    document.getElementById('joinEmail').value = invite.email;
+    document.getElementById('inviteContext').textContent =
+      `${invite.invitedBy} invited you to join ${invite.type === 'household' ? invite.name + "'s household" : 'a trip'}.`;
+
+    hide('loadingState');
+    show('formState');
+  })();
+
+  window.acceptInvite = async function () {
+    const errEl = document.getElementById('joinError');
+    errEl.classList.add('hidden');
+    const password = document.getElementById('joinPassword').value;
+    if (password.length < 6) {
+      errEl.textContent = 'Password must be at least 6 characters.';
+      errEl.classList.remove('hidden');
+      return;
+    }
+
+    try {
+      const cred = await createUserWithEmailAndPassword(auth, invite.email, password);
+
+      // Link the auth account to the existing person doc (created when the invite was sent)
+      await updateDoc(doc(db, 'people', invite.personId), {
+        authUid: cred.user.uid
+      });
+
+      if (invite.type === 'household') {
+        await updateDoc(doc(db, 'households', invite.targetId), {
+          memberUids: arrayUnion(cred.user.uid)
+        });
+      } else if (invite.type === 'trip') {
+        await updateDoc(doc(db, 'trips', invite.targetId), {
+          attendeeUids: arrayUnion(cred.user.uid)
+        });
+      }
+
+      await updateDoc(doc(db, 'invites', token), { used: true });
+
+      hide('formState');
+      show('successState');
+      setTimeout(() => { window.location.href = 'index.html'; }, 1500);
+    } catch (e) {
+      errEl.textContent = e.code && e.code.includes('email-already-in-use')
+        ? 'An account already exists with this email — try logging in from the dashboard instead.'
+        : 'Something went wrong. Please try again.';
+      errEl.classList.remove('hidden');
+    }
+  };
+
+  function showInvalid() { hide('loadingState'); show('invalidState'); }
+  function show(id) { document.getElementById(id).classList.remove('hidden'); }
+  function hide(id) { document.getElementById(id).classList.add('hidden'); }
+</script>
+</body>
+</html>

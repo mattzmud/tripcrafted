@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TripCrafted</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800&family=Nunito+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #F8F6F0;
+    --card: #FFFFFF;
+    --green: #4CAF50;
+    --purple: #7C3AED;
+    --text: #1A1A2E;
+    --muted: #6B7280;
+    --border: #E5E0D8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Nunito Sans', sans-serif;
+    padding-bottom: 60px;
+  }
+  h1, h2, h3, label, .heading { font-family: 'Nunito', sans-serif; font-weight: 800; }
+  header {
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  header .logo { font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 20px; color: var(--green); }
+  header nav a {
+    margin-left: 16px;
+    color: var(--muted);
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 14px;
+  }
+  header nav a:hover { color: var(--text); }
+  main { max-width: 720px; margin: 0 auto; padding: 24px 20px; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+  input, select, textarea {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-family: 'Nunito Sans', sans-serif;
+    font-size: 15px;
+    margin-top: 6px;
+    margin-bottom: 14px;
+    background: var(--bg);
+    color: var(--text);
+  }
+  textarea { min-height: 80px; resize: vertical; }
+  label { font-size: 13px; color: var(--muted); display: block; text-transform: uppercase; letter-spacing: 0.03em; }
+  button {
+    font-family: 'Nunito', sans-serif;
+    font-weight: 700;
+    border: none;
+    border-radius: 8px;
+    padding: 11px 18px;
+    font-size: 15px;
+    cursor: pointer;
+  }
+  .btn-primary { background: var(--green); color: white; }
+  .btn-secondary { background: var(--card); color: var(--purple); border: 1.5px solid var(--purple); }
+  .btn-text { background: transparent; color: var(--muted); padding: 6px 8px; }
+  .btn-primary:hover { opacity: 0.9; }
+  .row { display: flex; gap: 10px; align-items: center; }
+  .checkbox-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; }
+  .checkbox-row input { width: auto; margin: 0; }
+  .trip-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+  }
+  .trip-card:hover { border-color: var(--green); }
+  .trip-name { font-family: 'Nunito', sans-serif; font-weight: 700; font-size: 17px; }
+  .trip-dates { color: var(--muted); font-size: 13px; margin-top: 2px; }
+  .countdown-pill {
+    background: var(--green);
+    color: white;
+    font-weight: 700;
+    font-size: 13px;
+    padding: 6px 12px;
+    border-radius: 20px;
+    white-space: nowrap;
+  }
+  .theme-swatches { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .swatch {
+    width: 64px;
+    padding: 8px 4px;
+    border-radius: 10px;
+    border: 2px solid transparent;
+    cursor: pointer;
+    text-align: center;
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .swatch.selected { border-color: var(--text); }
+  .swatch-color { height: 24px; border-radius: 6px; margin-bottom: 4px; }
+  .modal-overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(26,26,46,0.4);
+    z-index: 100;
+    align-items: flex-end;
+    justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--card);
+    border-radius: 24px 24px 0 0;
+    padding: 24px 20px 32px;
+    width: 100%;
+    max-width: 560px;
+    max-height: 85vh;
+    overflow-y: auto;
+  }
+  @media (min-width: 768px) {
+    .modal-overlay { align-items: center; }
+    .modal { border-radius: 24px; margin: 20px; }
+  }
+  .empty-state { text-align: center; padding: 40px 20px; color: var(--muted); }
+  .guest-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 20px; padding: 4px 10px; font-size: 13px; margin: 4px 4px 0 0;
+  }
+  .guest-chip button { padding: 0; background: none; color: var(--muted); font-size: 14px; line-height: 1; }
+  #authScreen { max-width: 380px; margin: 60px auto; }
+  .hidden { display: none !important; }
+  .error-text { color: #C0392B; font-size: 13px; margin-top: -8px; margin-bottom: 12px; }
+</style>
+</head>
+<body>
+
+<header id="appHeader" class="hidden">
+  <div class="logo">🧭 TripCrafted</div>
+  <nav>
+    <a href="household.html">Household</a>
+    <a href="#" onclick="window.doLogout(); return false;">Log out</a>
+  </nav>
+</header>
+
+<main>
+  <!-- AUTH SCREEN -->
+  <div id="authScreen" class="card">
+    <h2>TripCrafted</h2>
+    <div id="loginForm">
+      <label>Email</label>
+      <input type="email" id="loginEmail" placeholder="you@example.com">
+      <label>Password</label>
+      <input type="password" id="loginPassword" placeholder="••••••••">
+      <div id="authError" class="error-text hidden"></div>
+      <button class="btn-primary" style="width:100%" onclick="window.doLogin()">Log In</button>
+      <p style="text-align:center; font-size:14px; color:var(--muted); margin-top:16px;">
+        New here? <a href="#" onclick="window.toggleAuthMode(); return false;">Create an account</a>
+      </p>
+    </div>
+    <div id="signupForm" class="hidden">
+      <p style="font-size:13px; color:var(--muted);">If someone invited you, use the link in your invite email instead of signing up here.</p>
+      <label>Your Name</label>
+      <input type="text" id="signupName" placeholder="Emily Smith">
+      <label>Email</label>
+      <input type="email" id="signupEmail" placeholder="you@example.com">
+      <label>Password</label>
+      <input type="password" id="signupPassword" placeholder="At least 6 characters">
+      <div id="signupError" class="error-text hidden"></div>
+      <button class="btn-primary" style="width:100%" onclick="window.doSignup()">Create Account</button>
+      <p style="text-align:center; font-size:14px; color:var(--muted); margin-top:16px;">
+        Already have an account? <a href="#" onclick="window.toggleAuthMode(); return false;">Log in</a>
+      </p>
+    </div>
+  </div>
+
+  <!-- CREATE HOUSEHOLD (first-time users with no household yet) -->
+  <div id="createHouseholdScreen" class="card hidden">
+    <h2>Set Up Your Household</h2>
+    <p style="color:var(--muted); font-size:14px;">This is the group you'll invite trip companions from — you can add family members and invite others afterward.</p>
+    <label>Household Name</label>
+    <input type="text" id="householdNameInput" placeholder="The Smith Household">
+    <button class="btn-primary" onclick="window.createHousehold()">Create Household</button>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div id="dashboard" class="hidden">
+    <div class="card" id="nextTripCard" style="display:none;">
+      <div class="row" style="justify-content:space-between;">
+        <div>
+          <label style="margin-bottom:2px;">Up Next</label>
+          <div class="trip-name" id="nextTripName"></div>
+          <div class="trip-dates" id="nextTripDates"></div>
+        </div>
+        <div class="countdown-pill" id="nextTripCountdown"></div>
+      </div>
+    </div>
+
+    <div class="row" style="justify-content:space-between; margin-bottom:12px;">
+      <h2 style="margin:0;">Your Trips</h2>
+      <button class="btn-primary" onclick="window.openTripModal()">+ New Trip</button>
+    </div>
+
+    <div id="tripList"></div>
+    <div id="tripListEmpty" class="empty-state hidden">
+      No trips yet — create your first one above.
+    </div>
+  </div>
+</main>
+
+<!-- CREATE TRIP MODAL -->
+<div class="modal-overlay" id="tripModalOverlay">
+  <div class="modal">
+    <h2>New Trip</h2>
+    <label>Trip Name</label>
+    <input type="text" id="tripName" placeholder="Smoky Mountains 2026">
+
+    <div class="row">
+      <div style="flex:1;">
+        <label>Start Date</label>
+        <input type="date" id="tripStart">
+      </div>
+      <div style="flex:1;">
+        <label>End Date</label>
+        <input type="date" id="tripEnd">
+      </div>
+    </div>
+
+    <label>Theme</label>
+    <div class="theme-swatches" id="themeSwatches"></div>
+
+    <label>Lodging Link (Airbnb / VRBO / Hotel — optional)</label>
+    <input type="text" id="tripLodging" placeholder="https://...">
+
+    <label>Notes (optional)</label>
+    <textarea id="tripNotes" placeholder="Check-in is 4pm, bring cash for the farmers market..."></textarea>
+
+    <label>Who's Coming — Your Household</label>
+    <div id="householdAttendeePicker"></div>
+
+    <label style="margin-top:14px;">Invite Someone Else</label>
+    <div class="row">
+      <input type="text" id="guestName" placeholder="Name" style="margin-bottom:0;">
+      <input type="email" id="guestEmail" placeholder="Email" style="margin-bottom:0;">
+      <button class="btn-secondary" onclick="window.addGuest()" style="white-space:nowrap;">Add</button>
+    </div>
+    <div id="guestChips" style="margin-top:8px;"></div>
+
+    <div id="tripError" class="error-text hidden" style="margin-top:14px;"></div>
+
+    <div class="row" style="margin-top:20px;">
+      <button class="btn-text" onclick="window.closeTripModal()">Cancel</button>
+      <button class="btn-primary" style="flex:1;" onclick="window.saveTrip()">Create Trip</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+  import { firebaseConfig, WORKER_URL, TRIP_THEMES } from './firebase-config.js';
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+  import {
+    getAuth, onAuthStateChanged, signInWithEmailAndPassword,
+    createUserWithEmailAndPassword, signOut
+  } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+  import {
+    getFirestore, collection, doc, setDoc, addDoc, getDoc, getDocs,
+    query, where, updateDoc, arrayUnion, serverTimestamp, orderBy
+  } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  let currentUser = null;
+  let currentPerson = null;      // { id, ...data }
+  let currentHousehold = null;   // { id, ...data }
+  let householdMembers = [];     // people docs in the household
+  let pendingGuests = [];        // [{name, email}] added to the trip modal before save
+
+  // ---------- Auth ----------
+  window.toggleAuthMode = function () {
+    document.getElementById('loginForm').classList.toggle('hidden');
+    document.getElementById('signupForm').classList.toggle('hidden');
+  };
+
+  window.doLogin = async function () {
+    const email = document.getElementById('loginEmail').value.trim();
+    const password = document.getElementById('loginPassword').value;
+    const errEl = document.getElementById('authError');
+    errEl.classList.add('hidden');
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+    } catch (e) {
+      errEl.textContent = friendlyAuthError(e);
+      errEl.classList.remove('hidden');
+    }
+  };
+
+  window.doSignup = async function () {
+    const name = document.getElementById('signupName').value.trim();
+    const email = document.getElementById('signupEmail').value.trim();
+    const password = document.getElementById('signupPassword').value;
+    const errEl = document.getElementById('signupError');
+    errEl.classList.add('hidden');
+    if (!name || !email || password.length < 6) {
+      errEl.textContent = 'Please fill in your name, email, and a password of at least 6 characters.';
+      errEl.classList.remove('hidden');
+      return;
+    }
+    try {
+      const cred = await createUserWithEmailAndPassword(auth, email, password);
+      // Create a person doc with no household yet — createHousehold() will attach it
+      await setDoc(doc(db, 'people', cred.user.uid), {
+        name, email, authUid: cred.user.uid,
+        householdId: null, isProfileOnly: false,
+        createdAt: serverTimestamp()
+      });
+    } catch (e) {
+      errEl.textContent = friendlyAuthError(e);
+      errEl.classList.remove('hidden');
+    }
+  };
+
+  window.doLogout = async function () {
+    await signOut(auth);
+  };
+
+  function friendlyAuthError(e) {
+    const code = e.code || '';
+    if (code.includes('wrong-password') || code.includes('invalid-credential')) return 'Incorrect email or password.';
+    if (code.includes('email-already-in-use')) return 'An account already exists with that email.';
+    if (code.includes('user-not-found')) return 'No account found with that email.';
+    return 'Something went wrong. Please try again.';
+  }
+
+  // ---------- Bootstrapping after login ----------
+  onAuthStateChanged(auth, async (user) => {
+    currentUser = user;
+    if (!user) {
+      show('authScreen'); hide('createHouseholdScreen'); hide('dashboard');
+      document.getElementById('appHeader').classList.add('hidden');
+      return;
+    }
+    document.getElementById('appHeader').classList.remove('hidden');
+    hide('authScreen');
+
+    // person doc id == auth uid for anyone who created their own account
+    const personSnap = await getDoc(doc(db, 'people', user.uid));
+    if (!personSnap.exists()) {
+      // Shouldn't normally happen (setup.html / signup create it), but handle gracefully
+      hide('dashboard');
+      show('createHouseholdScreen');
+      return;
+    }
+    currentPerson = { id: personSnap.id, ...personSnap.data() };
+
+    if (!currentPerson.householdId) {
+      hide('dashboard');
+      show('createHouseholdScreen');
+      return;
+    }
+
+    await loadHousehold(currentPerson.householdId);
+    hide('createHouseholdScreen');
+    show('dashboard');
+    await loadTrips();
+  });
+
+  window.createHousehold = async function () {
+    const name = document.getElementById('householdNameInput').value.trim();
+    if (!name) return;
+    const hhRef = await addDoc(collection(db, 'households'), {
+      name, managerId: currentPerson.id,
+      memberIds: [currentPerson.id],
+      memberUids: [currentUser.uid],
+      createdAt: serverTimestamp()
+    });
+    await updateDoc(doc(db, 'people', currentPerson.id), { householdId: hhRef.id });
+    currentPerson.householdId = hhRef.id;
+    await loadHousehold(hhRef.id);
+    hide('createHouseholdScreen');
+    show('dashboard');
+    await loadTrips();
+  };
+
+  async function loadHousehold(householdId) {
+    const hhSnap = await getDoc(doc(db, 'households', householdId));
+    currentHousehold = { id: hhSnap.id, ...hhSnap.data() };
+    householdMembers = [];
+    for (const pid of currentHousehold.memberIds) {
+      const pSnap = await getDoc(doc(db, 'people', pid));
+      if (pSnap.exists()) householdMembers.push({ id: pSnap.id, ...pSnap.data() });
+    }
+  }
+
+  // ---------- Trips ----------
+  async function loadTrips() {
+    const q = query(collection(db, 'trips'), where('attendees', 'array-contains', currentPerson.id));
+    const snap = await getDocs(q);
+    const trips = [];
+    snap.forEach(d => trips.push({ id: d.id, ...d.data() }));
+    trips.sort((a, b) => (a.startDate || '').localeCompare(b.startDate || ''));
+    renderTrips(trips);
+  }
+
+  function renderTrips(trips) {
+    const listEl = document.getElementById('tripList');
+    const emptyEl = document.getElementById('tripListEmpty');
+    listEl.innerHTML = '';
+    if (trips.length === 0) {
+      emptyEl.classList.remove('hidden');
+    } else {
+      emptyEl.classList.add('hidden');
+    }
+
+    const today = new Date().toISOString().slice(0, 10);
+    const upcoming = trips.filter(t => t.startDate >= today);
+    const nextTrip = upcoming[0];
+    const nextTripCard = document.getElementById('nextTripCard');
+    if (nextTrip) {
+      nextTripCard.style.display = 'block';
+      document.getElementById('nextTripName').textContent = nextTrip.name;
+      document.getElementById('nextTripDates').textContent = formatDateRange(nextTrip.startDate, nextTrip.endDate);
+      const days = daysUntil(nextTrip.startDate);
+      document.getElementById('nextTripCountdown').textContent = days === 0 ? 'Today!' : (days === 1 ? '1 day' : days + ' days');
+    } else {
+      nextTripCard.style.display = 'none';
+    }
+
+    trips.forEach(trip => {
+      const theme = TRIP_THEMES[trip.theme] || TRIP_THEMES.default;
+      const card = document.createElement('div');
+      card.className = 'card trip-card';
+      card.style.borderLeft = `5px solid ${theme.primary}`;
+      card.innerHTML = `
+        <div>
+          <div class="trip-name">${escapeHtml(trip.name)}</div>
+          <div class="trip-dates">${formatDateRange(trip.startDate, trip.endDate)}</div>
+        </div>
+        <div class="countdown-pill" style="background:${theme.primary};">${daysUntilLabel(trip.startDate)}</div>
+      `;
+      // Phase 2 will link this to trip.html
+      card.onclick = () => alert('Trip detail page (trip.html) comes in Phase 2 — this is where you\'ll manage meals, packing, activities, and more for "' + trip.name + '".');
+      listEl.appendChild(card);
+    });
+  }
+
+  function daysUntil(dateStr) {
+    const today = new Date(); today.setHours(0,0,0,0);
+    const target = new Date(dateStr + 'T00:00:00');
+    return Math.round((target - today) / 86400000);
+  }
+  function daysUntilLabel(dateStr) {
+    const d = daysUntil(dateStr);
+    if (d < 0) return 'Past';
+    if (d === 0) return 'Today';
+    if (d === 1) return '1 day';
+    return d + ' days';
+  }
+  function formatDateRange(start, end) {
+    if (!start) return '';
+    const opts = { month: 'short', day: 'numeric' };
+    const s = new Date(start + 'T00:00:00').toLocaleDateString('en-US', opts);
+    const e = end ? new Date(end + 'T00:00:00').toLocaleDateString('en-US', opts) : '';
+    return e ? `${s} – ${e}` : s;
+  }
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str || '';
+    return div.innerHTML;
+  }
+
+  // ---------- Create Trip Modal ----------
+  let selectedTheme = 'default';
+
+  window.openTripModal = function () {
+    pendingGuests = [];
+    document.getElementById('tripName').value = '';
+    document.getElementById('tripStart').value = '';
+    document.getElementById('tripEnd').value = '';
+    document.getElementById('tripLodging').value = '';
+    document.getElementById('tripNotes').value = '';
+    document.getElementById('guestName').value = '';
+    document.getElementById('guestEmail').value = '';
+    document.getElementById('tripError').classList.add('hidden');
+    selectedTheme = 'default';
+    renderThemeSwatches();
+    renderAttendeePicker();
+    renderGuestChips();
+    document.getElementById('tripModalOverlay').classList.add('open');
+  };
+
+  window.closeTripModal = function () {
+    document.getElementById('tripModalOverlay').classList.remove('open');
+  };
+
+  function renderThemeSwatches() {
+    const el = document.getElementById('themeSwatches');
+    el.innerHTML = '';
+    Object.entries(TRIP_THEMES).forEach(([key, theme]) => {
+      const sw = document.createElement('div');
+      sw.className = 'swatch' + (key === selectedTheme ? ' selected' : '');
+      sw.innerHTML = `<div class="swatch-color" style="background:linear-gradient(135deg, ${theme.primary}, ${theme.secondary});"></div>${theme.label}`;
+      sw.onclick = () => { selectedTheme = key; renderThemeSwatches(); };
+      el.appendChild(sw);
+    });
+  }
+
+  function renderAttendeePicker() {
+    const el = document.getElementById('householdAttendeePicker');
+    el.innerHTML = '';
+    householdMembers.forEach(person => {
+      const row = document.createElement('div');
+      row.className = 'checkbox-row';
+      row.innerHTML = `
+        <input type="checkbox" id="attendee_${person.id}" value="${person.id}" checked>
+        <label for="attendee_${person.id}" style="text-transform:none; font-size:15px; color:var(--text); margin:0;">
+          ${escapeHtml(person.name)}${person.isProfileOnly ? ' <span style="color:var(--muted); font-size:12px;">(profile only)</span>' : ''}
+        </label>
+      `;
+      el.appendChild(row);
+    });
+  }
+
+  window.addGuest = function () {
+    const name = document.getElementById('guestName').value.trim();
+    const email = document.getElementById('guestEmail').value.trim();
+    if (!name || !email) return;
+    pendingGuests.push({ name, email });
+    document.getElementById('guestName').value = '';
+    document.getElementById('guestEmail').value = '';
+    renderGuestChips();
+  };
+
+  function renderGuestChips() {
+    const el = document.getElementById('guestChips');
+    el.innerHTML = '';
+    pendingGuests.forEach((g, i) => {
+      const chip = document.createElement('span');
+      chip.className = 'guest-chip';
+      chip.innerHTML = `${escapeHtml(g.name)} <button onclick="window.removeGuest(${i})">✕</button>`;
+      el.appendChild(chip);
+    });
+  }
+
+  window.removeGuest = function (i) {
+    pendingGuests.splice(i, 1);
+    renderGuestChips();
+  };
+
+  window.saveTrip = async function () {
+    const errEl = document.getElementById('tripError');
+    errEl.classList.add('hidden');
+    const name = document.getElementById('tripName').value.trim();
+    const startDate = document.getElementById('tripStart').value;
+    const endDate = document.getElementById('tripEnd').value;
+    const lodgingLink = document.getElementById('tripLodging').value.trim();
+    const notes = document.getElementById('tripNotes').value.trim();
+
+    if (!name || !startDate || !endDate) {
+      errEl.textContent = 'Trip name, start date, and end date are required.';
+      errEl.classList.remove('hidden');
+      return;
+    }
+    if (endDate < startDate) {
+      errEl.textContent = 'End date must be on or after the start date.';
+      errEl.classList.remove('hidden');
+      return;
+    }
+
+    const attendeeIds = [];
+    const attendeeUids = [];
+    householdMembers.forEach(person => {
+      const cb = document.getElementById('attendee_' + person.id);
+      if (cb && cb.checked) {
+        attendeeIds.push(person.id);
+        if (person.authUid) attendeeUids.push(person.authUid);
+      }
+    });
+
+    // Create person docs for any newly-added guests (trip-only, no household)
+    const guestPersonRecords = [];
+    for (const guest of pendingGuests) {
+      const guestRef = await addDoc(collection(db, 'people'), {
+        name: guest.name, email: guest.email, authUid: null,
+        householdId: null, isProfileOnly: false,
+        createdAt: serverTimestamp()
+      });
+      attendeeIds.push(guestRef.id);
+      guestPersonRecords.push({ id: guestRef.id, ...guest });
+    }
+
+    const tripRef = await addDoc(collection(db, 'trips'), {
+      name, startDate, endDate, theme: selectedTheme,
+      lodgingLink, notes,
+      ownerId: currentPerson.id,
+      ownerUid: currentUser.uid,
+      attendees: attendeeIds,
+      attendeeUids,
+      createdAt: serverTimestamp()
+    });
+
+    // Send invites to trip-only guests
+    for (const guest of guestPersonRecords) {
+      await sendTripInvite(guest, tripRef.id, name);
+    }
+
+    closeTripModal();
+    await loadTrips();
+  };
+
+  async function sendTripInvite(person, tripId, tripName) {
+    const token = crypto.randomUUID();
+    await setDoc(doc(db, 'invites', token), {
+      type: 'trip', targetId: tripId, personId: person.id,
+      name: person.name, email: person.email,
+      invitedBy: currentPerson.name,
+      used: false, createdAt: serverTimestamp()
+    });
+    const link = `${window.location.origin}${window.location.pathname.replace('index.html','')}setup.html?invite=${token}`;
+    try {
+      await fetch(WORKER_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'send-invite',
+          to: person.email,
+          inviteeName: person.name,
+          inviterName: currentPerson.name,
+          context: `the trip "${tripName}"`,
+          link
+        })
+      });
+    } catch (e) {
+      console.error('Invite email failed to send:', e);
+    }
+  }
+
+  function show(id) { document.getElementById(id).classList.remove('hidden'); }
+  function hide(id) { document.getElementById(id).classList.add('hidden'); }
+</script>
+</body>
+</html>

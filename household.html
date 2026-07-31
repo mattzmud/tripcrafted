@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Household — TripCrafted</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800&family=Nunito+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #F8F6F0; --card: #FFFFFF; --green: #4CAF50; --purple: #7C3AED;
+    --text: #1A1A2E; --muted: #6B7280; --border: #E5E0D8;
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family:'Nunito Sans', sans-serif; padding-bottom:60px; }
+  h1,h2,h3,label { font-family:'Nunito', sans-serif; font-weight:800; }
+  header { background:var(--card); border-bottom:1px solid var(--border); padding:16px 20px; display:flex; justify-content:space-between; align-items:center; position:sticky; top:0; }
+  header .logo { font-family:'Nunito', sans-serif; font-weight:800; font-size:20px; color:var(--green); }
+  header nav a { margin-left:16px; color:var(--muted); text-decoration:none; font-weight:600; font-size:14px; }
+  main { max-width:640px; margin:0 auto; padding:24px 20px; }
+  .card { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:20px; margin-bottom:16px; }
+  input { width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:8px; font-size:15px; margin-top:6px; margin-bottom:14px; background:var(--bg); color:var(--text); }
+  label { font-size:13px; color:var(--muted); display:block; text-transform:uppercase; letter-spacing:0.03em; }
+  button { font-family:'Nunito', sans-serif; font-weight:700; border:none; border-radius:8px; padding:11px 18px; font-size:15px; cursor:pointer; }
+  .btn-primary { background:var(--green); color:white; }
+  .btn-secondary { background:var(--card); color:var(--purple); border:1.5px solid var(--purple); }
+  .row { display:flex; gap:10px; align-items:flex-end; }
+  .member-row { display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid var(--border); }
+  .member-row:last-child { border-bottom:none; }
+  .member-name { font-weight:700; }
+  .member-tag { font-size:12px; color:var(--muted); }
+  .badge { background:var(--purple); color:white; font-size:11px; padding:2px 8px; border-radius:10px; margin-left:6px; }
+  .error-text { color:#C0392B; font-size:13px; margin-top:-8px; margin-bottom:12px; }
+  .hidden { display:none !important; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">🧭 TripCrafted</div>
+  <nav>
+    <a href="index.html">Dashboard</a>
+  </nav>
+</header>
+
+<main>
+  <h2 id="householdTitle">Household</h2>
+
+  <div class="card">
+    <h3 style="margin-top:0;">Members</h3>
+    <div id="memberList"></div>
+  </div>
+
+  <div class="card" id="managerOnlyInvite">
+    <h3 style="margin-top:0;">Invite a Member</h3>
+    <p style="color:var(--muted); font-size:14px; margin-top:0;">They'll get an email with a link to create their account and join.</p>
+    <label>Name</label>
+    <input type="text" id="inviteName" placeholder="Derek Smith">
+    <label>Email</label>
+    <input type="email" id="inviteEmail" placeholder="derek@example.com">
+    <div id="inviteError" class="error-text hidden"></div>
+    <button class="btn-primary" onclick="window.sendMemberInvite()">Send Invite</button>
+  </div>
+
+  <div class="card" id="managerOnlyProfile">
+    <h3 style="margin-top:0;">Add a Profile-Only Person</h3>
+    <p style="color:var(--muted); font-size:14px; margin-top:0;">For household members who won't have their own account — like a young child. Any member with an account can manage their lists.</p>
+    <label>Name</label>
+    <input type="text" id="profileOnlyName" placeholder="Noah Smith">
+    <button class="btn-secondary" onclick="window.addProfileOnlyPerson()">Add Person</button>
+  </div>
+</main>
+
+<script type="module">
+  import { firebaseConfig } from './firebase-config.js';
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+  import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+  import {
+    getFirestore, doc, getDoc, addDoc, setDoc, updateDoc, collection,
+    arrayUnion, serverTimestamp
+  } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+  import { WORKER_URL } from './firebase-config.js';
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  let currentUser = null;
+  let currentPerson = null;
+  let currentHousehold = null;
+
+  onAuthStateChanged(auth, async (user) => {
+    if (!user) { window.location.href = 'index.html'; return; }
+    currentUser = user;
+    const personSnap = await getDoc(doc(db, 'people', user.uid));
+    if (!personSnap.exists() || !personSnap.data().householdId) {
+      window.location.href = 'index.html';
+      return;
+    }
+    currentPerson = { id: personSnap.id, ...personSnap.data() };
+    await loadHousehold(currentPerson.householdId);
+  });
+
+  async function loadHousehold(householdId) {
+    const hhSnap = await getDoc(doc(db, 'households', householdId));
+    currentHousehold = { id: hhSnap.id, ...hhSnap.data() };
+    document.getElementById('householdTitle').textContent = currentHousehold.name;
+
+    const isManager = currentHousehold.managerId === currentPerson.id;
+    document.getElementById('managerOnlyInvite').style.display = isManager ? 'block' : 'none';
+    document.getElementById('managerOnlyProfile').style.display = isManager ? 'block' : 'none';
+
+    const listEl = document.getElementById('memberList');
+    listEl.innerHTML = '';
+    for (const pid of currentHousehold.memberIds) {
+      const pSnap = await getDoc(doc(db, 'people', pid));
+      if (!pSnap.exists()) continue;
+      const p = pSnap.data();
+      const row = document.createElement('div');
+      row.className = 'member-row';
+      const isMgr = pid === currentHousehold.managerId;
+      row.innerHTML = `
+        <div>
+          <span class="member-name">${escapeHtml(p.name)}</span>
+          ${isMgr ? '<span class="badge">Manager</span>' : ''}
+          ${p.isProfileOnly ? '<span class="badge" style="background:var(--muted);">No Account</span>' : ''}
+        </div>
+        <span class="member-tag">${p.email || ''}</span>
+      `;
+      listEl.appendChild(row);
+    }
+  }
+
+  window.sendMemberInvite = async function () {
+    const errEl = document.getElementById('inviteError');
+    errEl.classList.add('hidden');
+    const name = document.getElementById('inviteName').value.trim();
+    const email = document.getElementById('inviteEmail').value.trim();
+    if (!name || !email) {
+      errEl.textContent = 'Please enter both a name and email.';
+      errEl.classList.remove('hidden');
+      return;
+    }
+
+    // Create the person doc now (no authUid yet — setup.html attaches it on signup)
+    const personRef = await addDoc(collection(db, 'people'), {
+      name, email, authUid: null,
+      householdId: currentHousehold.id, isProfileOnly: false,
+      createdAt: serverTimestamp()
+    });
+    await updateDoc(doc(db, 'households', currentHousehold.id), {
+      memberIds: arrayUnion(personRef.id)
+    });
+
+    const token = crypto.randomUUID();
+    await setDoc(doc(db, 'invites', token), {
+      type: 'household', targetId: currentHousehold.id, personId: personRef.id,
+      name, email, invitedBy: currentPerson.name,
+      used: false, createdAt: serverTimestamp()
+    });
+
+    const link = `${window.location.origin}${window.location.pathname.replace('household.html','')}setup.html?invite=${token}`;
+    try {
+      await fetch(WORKER_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'send-invite',
+          to: email, inviteeName: name, inviterName: currentPerson.name,
+          context: `the "${currentHousehold.name}" household`,
+          link
+        })
+      });
+    } catch (e) {
+      console.error('Invite email failed to send:', e);
+    }
+
+    document.getElementById('inviteName').value = '';
+    document.getElementById('inviteEmail').value = '';
+    await loadHousehold(currentHousehold.id);
+  };
+
+  window.addProfileOnlyPerson = async function () {
+    const name = document.getElementById('profileOnlyName').value.trim();
+    if (!name) return;
+    const personRef = await addDoc(collection(db, 'people'), {
+      name, email: null, authUid: null,
+      householdId: currentHousehold.id, isProfileOnly: true,
+      createdAt: serverTimestamp()
+    });
+    await updateDoc(doc(db, 'households', currentHousehold.id), {
+      memberIds: arrayUnion(personRef.id)
+    });
+    document.getElementById('profileOnlyName').value = '';
+    await loadHousehold(currentHousehold.id);
+  };
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str || '';
+    return div.innerHTML;
+  }
+</script>
+</body>
+</html>

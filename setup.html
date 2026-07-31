@@ -59,12 +59,13 @@
 </div>
 
 <script type="module">
-  import { firebaseConfig } from './firebase-config.js?v=1';
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
   import { getAuth, createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
   import {
     getFirestore, doc, getDoc, updateDoc, arrayUnion
   } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+  import { VERSION } from './version.js';
+  const { firebaseConfig } = await import(`./firebase-config.js?v=${VERSION}`);
 
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);

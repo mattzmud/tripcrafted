@@ -72,14 +72,14 @@
 </main>
 
 <script type="module">
-  import { firebaseConfig } from './firebase-config.js?v=1';
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
   import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
   import {
     getFirestore, doc, getDoc, getDocs, addDoc, setDoc, updateDoc, collection,
     query, where, arrayUnion, serverTimestamp
   } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
-  import { WORKER_URL } from './firebase-config.js?v=1';
+  import { VERSION } from './version.js';
+  const { firebaseConfig, WORKER_URL } = await import(`./firebase-config.js?v=${VERSION}`);
 
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);

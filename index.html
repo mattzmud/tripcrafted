@@ -278,7 +278,6 @@
 </div>
 
 <script type="module">
-  import { firebaseConfig, WORKER_URL, TRIP_THEMES } from './firebase-config.js?v=1';
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
   import {
     getAuth, onAuthStateChanged, signInWithEmailAndPassword,
@@ -288,6 +287,8 @@
     getFirestore, collection, doc, setDoc, addDoc, getDoc, getDocs,
     query, where, updateDoc, arrayUnion, serverTimestamp, orderBy
   } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+  import { VERSION } from './version.js';
+  const { firebaseConfig, WORKER_URL, TRIP_THEMES } = await import(`./firebase-config.js?v=${VERSION}`);
 
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);

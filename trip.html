@@ -59,7 +59,8 @@
     background: rgba(255,255,255,0.2); padding: 6px 14px; border-radius: 8px; display: inline-block;
   }
   .trip-lodging a:hover { background: rgba(255,255,255,0.3); }
-  .tabs { display: flex; gap: 8px; margin-bottom: 20px; border-bottom: 1px solid var(--border); }
+  .tabs { display: flex; gap: 8px; margin-bottom: 20px; border-bottom: 1px solid var(--border); overflow-x: auto; white-space: nowrap; }
+  .tab-btn { flex-shrink: 0; }
   .tab-btn {
     background: none; border: none; padding: 10px 4px; margin-right: 16px;
     font-family: 'Nunito', sans-serif; font-weight: 700; font-size: 15px;
@@ -184,6 +185,19 @@
     border-radius: 20px; padding: 4px 10px; font-size: 13px; margin: 4px 4px 0 0;
   }
   .guest-chip button { padding: 0; background: none; color: var(--muted); font-size: 14px; line-height: 1; }
+  .todo-item { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+  .todo-item:last-child { border-bottom: none; }
+  .todo-item input[type=checkbox] { width: 20px; height: 20px; margin: 0; flex-shrink: 0; }
+  .todo-item.done .todo-text { text-decoration: line-through; color: var(--muted); }
+  .todo-text { flex: 1; font-size: 15px; }
+  .todo-day { font-size: 12px; color: var(--muted); }
+  .hide-toggle-btn { background: none; border: none; color: var(--muted); font-size: 12px; cursor: pointer; padding: 4px 6px; }
+  .hide-toggle-btn.is-hidden { color: var(--secondary); font-weight: 700; }
+  .include-row { display: flex; flex-wrap: wrap; gap: 14px; }
+  .activity-card { display: flex; justify-content: space-between; align-items: flex-start; }
+  .activity-time { font-size: 12px; color: var(--muted); font-weight: 700; text-transform: uppercase; }
+  .activity-name { font-weight: 700; font-size: 16px; margin: 2px 0; }
+  .activity-details { font-size: 14px; color: var(--muted); white-space: pre-wrap; }
 </style>
 </head>
 <body>
@@ -211,6 +225,8 @@
     <button class="tab-btn active" data-tab="meals" onclick="window.switchTab('meals')">Meals</button>
     <button class="tab-btn" data-tab="supplies" onclick="window.switchTab('supplies')">Supplies</button>
     <button class="tab-btn" data-tab="packing" onclick="window.switchTab('packing')">Packing</button>
+    <button class="tab-btn" data-tab="activities" onclick="window.switchTab('activities')">Activities</button>
+    <button class="tab-btn" data-tab="todo" onclick="window.switchTab('todo')">To-Do</button>
     <button class="tab-btn" data-tab="shopping" onclick="window.switchTab('shopping')">Shopping List</button>
   </div>
 
@@ -232,6 +248,30 @@
     </div>
     <div id="suppliesList"></div>
     <div id="suppliesEmpty" class="empty-state hidden">No supplies added yet.</div>
+  </div>
+
+  <!-- ACTIVITIES -->
+  <div class="tab-panel" id="tab-activities">
+    <div class="section-header">
+      <h3 style="margin:0;">Activities</h3>
+      <button class="btn-primary" onclick="window.openActivityModal()">+ Add Activity</button>
+    </div>
+    <div id="activitiesList"></div>
+    <div id="activitiesEmpty" class="empty-state hidden">No activities planned yet.</div>
+  </div>
+
+  <!-- TO-DO -->
+  <div class="tab-panel" id="tab-todo">
+    <div class="person-tabs" id="todoPersonTabs"></div>
+    <div id="todoIncludeRow" class="card hidden" style="padding:12px 18px;"></div>
+    <div class="section-header">
+      <h3 style="margin:0;" id="todoListTitle">To-Do</h3>
+      <button class="btn-primary" onclick="window.openTodoModal()">+ Add Item</button>
+    </div>
+    <div class="card">
+      <div id="todoList"></div>
+      <div id="todoEmpty" class="empty-state hidden">Nothing here yet.</div>
+    </div>
   </div>
 
   <!-- SHOPPING LIST -->
@@ -452,6 +492,67 @@
   </div>
 </div>
 
+<!-- ADD/EDIT ACTIVITY MODAL -->
+<div class="modal-overlay" id="activityModalOverlay">
+  <div class="modal">
+    <h2 id="activityModalTitle">Add Activity</h2>
+
+    <div class="row">
+      <div style="flex:1;">
+        <label>Day</label>
+        <select id="activityDay"></select>
+      </div>
+      <div style="flex:1;">
+        <label>Time (optional)</label>
+        <input type="time" id="activityTime">
+      </div>
+    </div>
+
+    <label>Activity Name</label>
+    <input type="text" id="activityName" placeholder="Winery tour">
+
+    <label>Details</label>
+    <textarea id="activityDetails" placeholder="Free-form notes — reservation info, what to bring, etc."></textarea>
+
+    <div id="activityError" class="error-text hidden"></div>
+
+    <div class="row" style="margin-top:20px;">
+      <button class="btn-text" onclick="window.closeActivityModal()">Cancel</button>
+      <button class="btn-primary" id="activitySaveBtn" style="flex:1;" onclick="window.saveActivity()">Save Activity</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADD/EDIT TO-DO MODAL -->
+<div class="modal-overlay" id="todoModalOverlay">
+  <div class="modal">
+    <h2 id="todoModalTitle">Add To-Do Item</h2>
+
+    <label>Item</label>
+    <input type="text" id="todoText" placeholder="Fill the cat's food tower">
+
+    <label>Assign To</label>
+    <select id="todoAssignTo"></select>
+
+    <label>Day (optional)</label>
+    <select id="todoDay">
+      <option value="">No specific day</option>
+    </select>
+
+    <div class="checkbox-row" id="todoHideRow">
+      <input type="checkbox" id="todoHidden">
+      <label for="todoHidden">Hide from others (only I can see this)</label>
+    </div>
+
+    <div id="todoError" class="error-text hidden"></div>
+
+    <div class="row" style="margin-top:20px;">
+      <button class="btn-text" onclick="window.closeTodoModal()">Cancel</button>
+      <button class="btn-primary" id="todoSaveBtn" style="flex:1;" onclick="window.saveTodo()">Save Item</button>
+    </div>
+  </div>
+</div>
+
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
   import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
@@ -489,6 +590,12 @@
   let editAttendeeUids = {};      // personId -> authUid, for building attendeeUids on save
   let editPendingGuests = [];     // newly invited trip-only guests, not yet saved
   let selectedEditTheme = 'default';
+  let activities = [];
+  let todos = [];
+  let editingActivityId = null;
+  let editingTodoId = null;
+  let activeTodoTarget = null;    // {type:'person', id} or {type:'household', id}
+  let todoIncludeSet = new Set(); // personIds whose personal items are folded into the household view
 
   if (!tripId) {
     window.location.href = 'index.html';
@@ -544,7 +651,10 @@
     populateMealDayOptions();
     await loadMeals();
     await loadItems();
+    await loadActivities();
+    await loadTodos();
     renderPackingTabs();
+    renderTodoTabs();
     renderAll();
   });
 
@@ -626,11 +736,26 @@
     snap.forEach(d => items.push({ id: d.id, ...d.data() }));
   }
 
+  async function loadActivities() {
+    const snap = await getDocs(collection(db, 'trips', tripId, 'activities'));
+    activities = [];
+    snap.forEach(d => activities.push({ id: d.id, ...d.data() }));
+    activities.sort((a, b) => (a.day + (a.time || '00:00')).localeCompare(b.day + (b.time || '00:00')));
+  }
+
+  async function loadTodos() {
+    const snap = await getDocs(collection(db, 'trips', tripId, 'todos'));
+    todos = [];
+    snap.forEach(d => todos.push({ id: d.id, ...d.data() }));
+  }
+
   function renderAll() {
     renderMeals();
     renderSupplies();
     renderShoppingList();
     renderPackingList();
+    renderActivities();
+    renderTodoList();
   }
 
   // ============================================================
@@ -702,8 +827,18 @@
 
   // ---------- Meals ----------
   function populateMealDayOptions() {
-    const sel = document.getElementById('mealDay');
-    sel.innerHTML = '';
+    populateDaySelect('mealDay', false);
+    populateDaySelect('activityDay', false);
+    populateDaySelect('todoDay', true);
+  }
+
+  function populateDaySelect(selectId, keepNoSpecificDayOption) {
+    const sel = document.getElementById(selectId);
+    if (keepNoSpecificDayOption) {
+      sel.innerHTML = '<option value="">No specific day</option>';
+    } else {
+      sel.innerHTML = '';
+    }
     dateRange(trip.startDate, trip.endDate).forEach(function (d) {
       const opt = document.createElement('option');
       opt.value = d;
@@ -1506,6 +1641,295 @@
 
     window.closeEditTripModal();
     window.location.reload();
+  };
+
+  // ---------- Activities ----------
+  function renderActivities() {
+    const listEl = document.getElementById('activitiesList');
+    const emptyEl = document.getElementById('activitiesEmpty');
+    listEl.innerHTML = '';
+    if (activities.length === 0) { emptyEl.classList.remove('hidden'); return; }
+    emptyEl.classList.add('hidden');
+
+    const byDay = {};
+    activities.forEach(a => { (byDay[a.day] = byDay[a.day] || []).push(a); });
+
+    Object.keys(byDay).sort().forEach(day => {
+      const group = document.createElement('div');
+      group.className = 'day-group';
+      group.innerHTML = `<div class="day-label">${formatDayLabel(day)}</div>`;
+      byDay[day].forEach(activity => group.appendChild(buildActivityCard(activity)));
+      listEl.appendChild(group);
+    });
+  }
+
+  function buildActivityCard(activity) {
+    const card = document.createElement('div');
+    card.className = 'card activity-card';
+    card.innerHTML = `
+      <div style="flex:1;">
+        ${activity.time ? `<div class="activity-time">${formatTime(activity.time)}</div>` : ''}
+        <div class="activity-name">${escapeHtml(activity.name)}</div>
+        ${activity.details ? `<div class="activity-details">${escapeHtml(activity.details)}</div>` : ''}
+      </div>
+    `;
+    const actions = document.createElement('div');
+    actions.className = 'card-actions';
+    const editBtn = document.createElement('button');
+    editBtn.className = 'btn-link';
+    editBtn.textContent = 'Edit';
+    editBtn.onclick = () => window.openActivityModal(activity.id);
+    const delBtn = document.createElement('button');
+    delBtn.className = 'btn-danger';
+    delBtn.textContent = 'Delete';
+    delBtn.onclick = () => window.deleteActivity(activity.id);
+    actions.appendChild(editBtn);
+    actions.appendChild(delBtn);
+    card.appendChild(actions);
+    return card;
+  }
+
+  function formatTime(timeStr) {
+    const [h, m] = timeStr.split(':').map(Number);
+    const period = h >= 12 ? 'PM' : 'AM';
+    const h12 = h % 12 === 0 ? 12 : h % 12;
+    return `${h12}:${String(m).padStart(2, '0')} ${period}`;
+  }
+
+  window.openActivityModal = function (activityId) {
+    editingActivityId = activityId || null;
+    document.getElementById('activityError').classList.add('hidden');
+
+    if (editingActivityId) {
+      const activity = activities.find(a => a.id === editingActivityId);
+      document.getElementById('activityModalTitle').textContent = 'Edit Activity';
+      document.getElementById('activitySaveBtn').textContent = 'Update Activity';
+      document.getElementById('activityDay').value = activity.day;
+      document.getElementById('activityTime').value = activity.time || '';
+      document.getElementById('activityName').value = activity.name || '';
+      document.getElementById('activityDetails').value = activity.details || '';
+    } else {
+      document.getElementById('activityModalTitle').textContent = 'Add Activity';
+      document.getElementById('activitySaveBtn').textContent = 'Save Activity';
+      document.getElementById('activityTime').value = '';
+      document.getElementById('activityName').value = '';
+      document.getElementById('activityDetails').value = '';
+    }
+
+    document.getElementById('activityModalOverlay').classList.add('open');
+  };
+  window.closeActivityModal = function () {
+    document.getElementById('activityModalOverlay').classList.remove('open');
+    editingActivityId = null;
+  };
+
+  window.saveActivity = async function () {
+    const errEl = document.getElementById('activityError');
+    errEl.classList.add('hidden');
+    const name = document.getElementById('activityName').value.trim();
+    if (!name) { errEl.textContent = 'Please enter an activity name.'; errEl.classList.remove('hidden'); return; }
+    const day = document.getElementById('activityDay').value;
+    const time = document.getElementById('activityTime').value;
+    const details = document.getElementById('activityDetails').value.trim();
+
+    const activityData = { day, time, name, details };
+
+    if (editingActivityId) {
+      await updateDoc(doc(db, 'trips', tripId, 'activities', editingActivityId), activityData);
+    } else {
+      activityData.createdAt = serverTimestamp();
+      await addDoc(collection(db, 'trips', tripId, 'activities'), activityData);
+    }
+
+    window.closeActivityModal();
+    await loadActivities();
+    renderActivities();
+  };
+
+  window.deleteActivity = async function (activityId) {
+    if (!confirm('Delete this activity?')) return;
+    await deleteDoc(doc(db, 'trips', tripId, 'activities', activityId));
+    await loadActivities();
+    renderActivities();
+  };
+
+  // ---------- To-Do ----------
+  function renderTodoTabs() {
+    if (!activeTodoTarget) {
+      activeTodoTarget = { type: 'household', id: currentHousehold ? currentHousehold.id : 'none' };
+    }
+    const pills = [{ type: 'household', id: currentHousehold ? currentHousehold.id : 'none', label: 'Household' }];
+    myHouseholdAttendees.forEach(p => pills.push({ type: 'person', id: p.id, label: p.name === currentPerson.name ? 'My List' : p.name }));
+
+    document.getElementById('todoPersonTabs').innerHTML = pills.map(pill => {
+      const isActive = pill.type === activeTodoTarget.type && pill.id === activeTodoTarget.id;
+      return `<button type="button" class="person-pill${isActive ? ' active' : ''}" onclick="window.setTodoTarget('${pill.type}','${pill.id}')">${escapeHtml(pill.label)}</button>`;
+    }).join('');
+
+    const activeLabel = pills.find(p => p.type === activeTodoTarget.type && p.id === activeTodoTarget.id);
+    document.getElementById('todoListTitle').textContent = activeLabel ? (activeLabel.type === 'household' ? 'Household To-Do' : `${activeLabel.label === 'My List' ? 'My' : activeLabel.label + "'s"} To-Do`) : 'To-Do';
+
+    renderTodoIncludeRow();
+  }
+
+  window.setTodoTarget = function (type, id) {
+    activeTodoTarget = { type, id };
+    renderTodoTabs();
+    renderTodoList();
+  };
+
+  function renderTodoIncludeRow() {
+    const row = document.getElementById('todoIncludeRow');
+    if (!activeTodoTarget || activeTodoTarget.type !== 'household') {
+      row.classList.add('hidden');
+      row.innerHTML = '';
+      return;
+    }
+    row.classList.remove('hidden');
+    row.innerHTML = `
+      <label style="margin-bottom:8px;">Also Show</label>
+      <div class="include-row">
+        ${myHouseholdAttendees.map(p => `
+          <div class="checkbox-row" style="padding:2px 0;">
+            <input type="checkbox" ${todoIncludeSet.has(p.id) ? 'checked' : ''} onchange="window.toggleTodoInclude('${p.id}', this.checked)">
+            <label style="text-transform:none; font-size:14px; margin:0;">${escapeHtml(p.name)}'s items</label>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  window.toggleTodoInclude = function (personId, checked) {
+    if (checked) todoIncludeSet.add(personId);
+    else todoIncludeSet.delete(personId);
+    renderTodoList();
+  };
+
+  function getTodoItemsFor(target) {
+    if (!target) return [];
+    const visibleToMe = t => !t.hidden || t.ownerId === currentPerson.id;
+    if (target.type === 'household') {
+      const householdItems = todos.filter(t => t.scope === 'household' && t.householdId === target.id);
+      const includedPersonal = todos.filter(t => t.scope === 'personal' && todoIncludeSet.has(t.ownerId) && visibleToMe(t));
+      return [...householdItems, ...includedPersonal];
+    } else {
+      return todos.filter(t => t.scope === 'personal' && t.ownerId === target.id && visibleToMe(t));
+    }
+  }
+
+  function renderTodoList() {
+    if (!activeTodoTarget) return;
+    const listEl = document.getElementById('todoList');
+    const emptyEl = document.getElementById('todoEmpty');
+    const todoItems = getTodoItemsFor(activeTodoTarget);
+    listEl.innerHTML = '';
+    if (todoItems.length === 0) { emptyEl.classList.remove('hidden'); return; }
+    emptyEl.classList.add('hidden');
+
+    todoItems.forEach(t => {
+      const row = document.createElement('div');
+      row.className = 'todo-item' + (t.done ? ' done' : '');
+      const ownerLabel = t.scope === 'personal' && activeTodoTarget.type === 'household'
+        ? `<span class="todo-day">(${escapeHtml(lookupPersonName(t.ownerId))})</span> ` : '';
+      row.innerHTML = `
+        <input type="checkbox" ${t.done ? 'checked' : ''}>
+        <span class="todo-text">${ownerLabel}${escapeHtml(t.text)}</span>
+        ${t.day ? `<span class="todo-day">${formatDayLabel(t.day)}</span>` : ''}
+      `;
+      row.querySelector('input').onchange = (e) => window.toggleTodoDone(t.id, e.target.checked);
+
+      if (t.scope === 'personal') {
+        const hideBtn = document.createElement('button');
+        hideBtn.className = 'hide-toggle-btn' + (t.hidden ? ' is-hidden' : '');
+        hideBtn.textContent = t.hidden ? 'Hidden' : 'Hide';
+        hideBtn.title = 'Toggle visibility to others';
+        hideBtn.onclick = () => window.toggleTodoHidden(t.id, !t.hidden);
+        row.appendChild(hideBtn);
+      }
+
+      const delBtn = document.createElement('button');
+      delBtn.className = 'btn-danger';
+      delBtn.textContent = 'Delete';
+      delBtn.onclick = () => window.deleteTodo(t.id);
+      row.appendChild(delBtn);
+
+      listEl.appendChild(row);
+    });
+  }
+
+  window.toggleTodoDone = async function (todoId, done) {
+    await updateDoc(doc(db, 'trips', tripId, 'todos', todoId), { done });
+    await loadTodos();
+    renderTodoList();
+  };
+
+  window.toggleTodoHidden = async function (todoId, hidden) {
+    await updateDoc(doc(db, 'trips', tripId, 'todos', todoId), { hidden });
+    await loadTodos();
+    renderTodoList();
+  };
+
+  window.deleteTodo = async function (todoId) {
+    if (!confirm('Delete this to-do item?')) return;
+    await deleteDoc(doc(db, 'trips', tripId, 'todos', todoId));
+    await loadTodos();
+    renderTodoList();
+  };
+
+  window.openTodoModal = function () {
+    editingTodoId = null;
+    document.getElementById('todoError').classList.add('hidden');
+    document.getElementById('todoText').value = '';
+    document.getElementById('todoDay').value = '';
+    document.getElementById('todoHidden').checked = false;
+
+    const assignSel = document.getElementById('todoAssignTo');
+    const options = [{ type: 'household', id: currentHousehold ? currentHousehold.id : 'none', label: 'Household (General)' }];
+    myHouseholdAttendees.forEach(p => options.push({ type: 'person', id: p.id, label: p.name }));
+    assignSel.innerHTML = options.map(o => `<option value="${o.type}|${o.id}">${escapeHtml(o.label)}</option>`).join('');
+    if (activeTodoTarget) {
+      assignSel.value = `${activeTodoTarget.type}|${activeTodoTarget.id}`;
+    }
+    updateTodoHideRowVisibility();
+    assignSel.onchange = updateTodoHideRowVisibility;
+
+    document.getElementById('todoModalOverlay').classList.add('open');
+  };
+
+  function updateTodoHideRowVisibility() {
+    const val = document.getElementById('todoAssignTo').value;
+    const isHousehold = val.startsWith('household|');
+    document.getElementById('todoHideRow').classList.toggle('hidden', isHousehold);
+  }
+
+  window.closeTodoModal = function () {
+    document.getElementById('todoModalOverlay').classList.remove('open');
+    editingTodoId = null;
+  };
+
+  window.saveTodo = async function () {
+    const errEl = document.getElementById('todoError');
+    errEl.classList.add('hidden');
+    const text = document.getElementById('todoText').value.trim();
+    if (!text) { errEl.textContent = 'Please enter an item.'; errEl.classList.remove('hidden'); return; }
+    const day = document.getElementById('todoDay').value;
+    const [assignType, assignId] = document.getElementById('todoAssignTo').value.split('|');
+
+    const todoData = {
+      text, day,
+      scope: assignType === 'household' ? 'household' : 'personal',
+      householdId: currentHousehold ? currentHousehold.id : null,
+      ownerId: assignType === 'person' ? assignId : null,
+      hidden: assignType === 'person' ? document.getElementById('todoHidden').checked : false,
+      done: false,
+      createdAt: serverTimestamp()
+    };
+
+    await addDoc(collection(db, 'trips', tripId, 'todos'), todoData);
+
+    window.closeTodoModal();
+    await loadTodos();
+    renderTodoList();
   };
 </script>
 </body>

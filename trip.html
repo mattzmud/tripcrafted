@@ -535,9 +535,7 @@
     <select id="todoAssignTo"></select>
 
     <label>Day (optional)</label>
-    <select id="todoDay">
-      <option value="">No specific day</option>
-    </select>
+    <input type="date" id="todoDay">
 
     <div class="checkbox-row" id="todoHideRow">
       <input type="checkbox" id="todoHidden">
@@ -829,7 +827,6 @@
   function populateMealDayOptions() {
     populateDaySelect('mealDay', false);
     populateDaySelect('activityDay', false);
-    populateDaySelect('todoDay', true);
   }
 
   function populateDaySelect(selectId, keepNoSpecificDayOption) {

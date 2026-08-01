@@ -427,6 +427,8 @@
     <div id="mealOutFields" class="hidden">
       <label>Restaurant Name</label>
       <input type="text" id="mealRestaurantName" placeholder="The Rusty Anchor">
+      <label>Time (optional)</label>
+      <input type="time" id="mealTime">
       <label>Address</label>
       <input type="text" id="mealAddress" placeholder="123 Main St, City, State">
       <label>Notes</label>
@@ -995,7 +997,7 @@
       `;
     } else {
       bodyHtml = `
-        <div class="meal-slot">${meal.slot} · Eating Out</div>
+        <div class="meal-slot">${meal.slot} · Eating Out${meal.time ? ` · ${formatTime(meal.time)}` : ''}</div>
         <div class="meal-name">${escapeHtml(meal.name)}</div>
         ${meal.address ? `<div class="meal-meta">${escapeHtml(meal.address)} — <a class="directions-link" target="_blank" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(meal.address)}">Directions</a></div>` : ''}
         ${meal.notes ? `<div class="meal-meta" style="margin-top:4px;">${escapeHtml(meal.notes)}</div>` : ''}
@@ -1066,6 +1068,7 @@
         }
       } else {
         document.getElementById('mealRestaurantName').value = meal.name || '';
+        document.getElementById('mealTime').value = meal.time || '';
         document.getElementById('mealAddress').value = meal.address || '';
         document.getElementById('mealOutNotes').value = meal.notes || '';
       }
@@ -1074,6 +1077,7 @@
       document.getElementById('mealSaveBtn').textContent = 'Save Meal';
       document.getElementById('mealEntreeName').value = '';
       document.getElementById('mealRestaurantName').value = '';
+      document.getElementById('mealTime').value = '';
       document.getElementById('mealAddress').value = '';
       document.getElementById('mealOutNotes').value = '';
       document.getElementById('locHome').checked = true;
@@ -1167,9 +1171,10 @@
     } else {
       const name = document.getElementById('mealRestaurantName').value.trim();
       if (!name) { errEl.textContent = 'Please enter a restaurant name.'; errEl.classList.remove('hidden'); return; }
+      const time = document.getElementById('mealTime').value;
       const address = document.getElementById('mealAddress').value.trim();
       const notes = document.getElementById('mealOutNotes').value.trim();
-      mealData = { day: day, slot: slot, locationType: 'out', name: name, address: address, notes: notes };
+      mealData = { day: day, slot: slot, locationType: 'out', name: name, time: time, address: address, notes: notes };
     }
 
     // Validate ingredient rows before writing anything
@@ -1941,7 +1946,7 @@
             const cookNames = (m.cooks || []).map(pid => attendeesById[pid]?.name).filter(Boolean).join(', ');
             html += `<div class="calendar-entry"><span class="calendar-entry-tag">${capitalize(m.slot)}</span>${escapeHtml(m.name)}<span class="meal-meta"> — Home${cookNames ? `, cooking: ${escapeHtml(cookNames)}` : ''}</span></div>`;
           } else {
-            html += `<div class="calendar-entry"><span class="calendar-entry-tag">${capitalize(m.slot)}</span>${escapeHtml(m.name)}${m.address ? ` — <a class="directions-link" target="_blank" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(m.address)}">Directions</a>` : ''}</div>`;
+            html += `<div class="calendar-entry"><span class="calendar-entry-tag">${capitalize(m.slot)}${m.time ? ` · ${formatTime(m.time)}` : ''}</span>${escapeHtml(m.name)}${m.address ? ` — <a class="directions-link" target="_blank" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(m.address)}">Directions</a>` : ''}</div>`;
           }
         });
         dayActivities.forEach(a => {
@@ -2223,7 +2228,7 @@
             const cookNames = (m.cooks || []).map(pid => attendeesById[pid]?.name).filter(Boolean).join(', ');
             html += `<li><strong>${capitalize(m.slot)}:</strong> ${escapeHtml(m.name)} (Home)${cookNames ? ` — Cooking: ${escapeHtml(cookNames)}` : ''}</li>`;
           } else {
-            html += `<li><strong>${capitalize(m.slot)}:</strong> ${escapeHtml(m.name)}${m.address ? ` — ${escapeHtml(m.address)}` : ''}</li>`;
+            html += `<li><strong>${capitalize(m.slot)}${m.time ? ` (${formatTime(m.time)})` : ''}:</strong> ${escapeHtml(m.name)}${m.address ? ` — ${escapeHtml(m.address)}` : ''}</li>`;
           }
         });
         html += `</ul>`;

@@ -325,6 +325,7 @@
       <h3 style="margin:0;">Supplies</h3>
       <button class="btn-primary" onclick="window.openSupplyModal()">+ Add Supply</button>
     </div>
+    <input type="text" id="suppliesSearch" placeholder="Search supplies..." oninput="window.renderSupplies()" style="margin-bottom:16px;">
     <div id="unassignedSupplyBanner" class="unassigned-banner hidden">
       <span>❗</span>
       <span>Some supplies don't have anyone assigned to bring them — check the <a href="#unassignedSuppliesSection">Unassigned Supplies</a> section below.</span>
@@ -370,6 +371,7 @@
       <h3 style="margin:0;">Your Shopping List</h3>
       <button class="btn-secondary" onclick="window.print()">🖨️ Print</button>
     </div>
+    <input type="text" id="shoppingSearch" placeholder="Search your shopping list..." oninput="window.renderShoppingList()" style="margin-bottom:16px;">
     <div class="card">
       <div id="shoppingList"></div>
       <div id="shoppingEmpty" class="empty-state hidden">Nothing on your list right now.</div>
@@ -387,6 +389,7 @@
         <button class="btn-primary" onclick="window.openPackingModal()">+ Add Item</button>
       </div>
     </div>
+    <input type="text" id="packingSearch" placeholder="Search your packing list..." oninput="window.renderPackingList()" style="margin-bottom:16px;">
     <div class="card">
       <div id="packingList"></div>
       <div id="packingEmpty" class="empty-state hidden">Nothing on this list yet.</div>
@@ -1294,7 +1297,9 @@
     const unassignedSectionEl = document.getElementById('unassignedSuppliesSection');
     const bannerEl = document.getElementById('unassignedSupplyBanner');
 
-    const supplies = items.filter(function (i) { return i.type === 'supply'; });
+    const searchTerm = (document.getElementById('suppliesSearch')?.value || '').trim().toLowerCase();
+    let supplies = items.filter(function (i) { return i.type === 'supply'; });
+    if (searchTerm) supplies = supplies.filter(function (s) { return s.name.toLowerCase().includes(searchTerm); });
     const unassigned = supplies.filter(function (s) { return !(s.taggedPeople || []).length; });
     const assigned = supplies.filter(function (s) { return (s.taggedPeople || []).length > 0; });
 
@@ -1443,9 +1448,11 @@
   function renderShoppingList() {
     const listEl = document.getElementById('shoppingList');
     const emptyEl = document.getElementById('shoppingEmpty');
-    const myItems = items.filter(function (i) {
+    const searchTerm = (document.getElementById('shoppingSearch')?.value || '').trim().toLowerCase();
+    let myItems = items.filter(function (i) {
       return i.needsPurchase && (i.taggedPeople || []).includes(currentPerson.id);
     });
+    if (searchTerm) myItems = myItems.filter(function (i) { return i.name.toLowerCase().includes(searchTerm); });
     listEl.innerHTML = '';
     if (myItems.length === 0) { emptyEl.classList.remove('hidden'); return; }
     emptyEl.classList.add('hidden');
@@ -1575,7 +1582,9 @@
     if (!activePackingTarget) return;
     const listEl = document.getElementById('packingList');
     const emptyEl = document.getElementById('packingEmpty');
-    const packItems = getPackingItemsFor(activePackingTarget);
+    const searchTerm = (document.getElementById('packingSearch')?.value || '').trim().toLowerCase();
+    let packItems = getPackingItemsFor(activePackingTarget);
+    if (searchTerm) packItems = packItems.filter(i => i.name.toLowerCase().includes(searchTerm));
     listEl.innerHTML = '';
     if (packItems.length === 0) { emptyEl.classList.remove('hidden'); return; }
     emptyEl.classList.add('hidden');
@@ -1621,6 +1630,10 @@
       });
     });
   }
+
+  window.renderSupplies = renderSupplies;
+  window.renderShoppingList = renderShoppingList;
+  window.renderPackingList = renderPackingList;
 
   window.togglePacked = async function (itemId, packed) {
     await updateDoc(doc(db, 'trips', tripId, 'items', itemId), { packed: packed });

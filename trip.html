@@ -425,6 +425,12 @@
       <label for="locOut">Eating Out</label>
     </div>
 
+    <div class="row" style="justify-content:space-between; align-items:center;">
+      <label style="margin-bottom:0;">Who's Attending</label>
+      <button type="button" class="btn-secondary" style="padding:6px 12px; font-size:13px;" onclick="window.selectMyHouseholdForMeal()">My Household</button>
+    </div>
+    <div id="mealAttendeesPicker" style="margin-bottom:14px;"></div>
+
     <!-- HOME fields -->
     <div id="mealHomeFields">
       <label>Entree Name</label>
@@ -1003,6 +1009,9 @@
     const card = document.createElement('div');
     card.className = 'card meal-card';
     const mealIngredients = items.filter(function (i) { return i.type === 'meal-ingredient' && i.parentMealId === meal.id; });
+    const attendeeNames = (meal.attendees || []).map(function (pid) { return attendeesById[pid] ? attendeesById[pid].name : null; }).filter(Boolean);
+    const isEveryone = attendees.length > 0 && attendeeNames.length === attendees.length;
+    const attendingHtml = (!isEveryone && attendeeNames.length) ? `<div class="meal-meta">Attending: ${escapeHtml(attendeeNames.join(', '))}</div>` : '';
 
     let bodyHtml = '';
     if (meal.locationType === 'home') {
@@ -1011,6 +1020,7 @@
         <div class="meal-slot">${meal.slot} · Home</div>
         <div class="meal-name">${escapeHtml(meal.name)}</div>
         ${cookNames ? `<div class="meal-meta">Cooking: ${escapeHtml(cookNames)}</div>` : ''}
+        ${attendingHtml}
         ${mealIngredients.length ? `<div class="ingredient-list">${mealIngredients.map(function (ing) {
           return `
           <div class="ingredient-row-display">
@@ -1024,6 +1034,7 @@
         <div class="meal-slot">${meal.slot} · Eating Out${meal.time ? ` · ${formatTime(meal.time)}` : ''}</div>
         <div class="meal-name">${escapeHtml(meal.name)}</div>
         ${meal.address ? `<div class="meal-meta">${escapeHtml(meal.address)} — <a class="directions-link" target="_blank" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(meal.address)}">Directions</a></div>` : ''}
+        ${attendingHtml}
         ${meal.notes ? `<div class="meal-meta" style="margin-top:4px;">${escapeHtml(meal.notes)}</div>` : ''}
       `;
     }
@@ -1080,6 +1091,7 @@
       document.getElementById('locHome').checked = meal.locationType === 'home';
       document.getElementById('locOut').checked = meal.locationType === 'out';
       window.toggleMealLocation();
+      renderMealAttendeesPicker(meal.attendees && meal.attendees.length ? meal.attendees : attendees.map(function (a) { return a.id; }));
 
       if (meal.locationType === 'home') {
         document.getElementById('mealEntreeName').value = meal.name || '';
@@ -1106,6 +1118,7 @@
       document.getElementById('mealOutNotes').value = '';
       document.getElementById('locHome').checked = true;
       window.toggleMealLocation();
+      renderMealAttendeesPicker(attendees.map(function (a) { return a.id; })); // everyone checked by default
       renderMealCooksPicker([]);
       window.addIngredientRow();
     }
@@ -1120,6 +1133,25 @@
     const isHome = document.getElementById('locHome').checked;
     document.getElementById('mealHomeFields').classList.toggle('hidden', !isHome);
     document.getElementById('mealOutFields').classList.toggle('hidden', isHome);
+  };
+
+  function renderMealAttendeesPicker(checkedIds) {
+    const el = document.getElementById('mealAttendeesPicker');
+    el.innerHTML = attendees.map(function (p) {
+      return `
+      <div class="checkbox-row">
+        <input type="checkbox" class="meal-attendee-cb" value="${p.id}" id="mealAtt_${p.id}" ${checkedIds.includes(p.id) ? 'checked' : ''}>
+        <label for="mealAtt_${p.id}">${escapeHtml(p.name)}</label>
+      </div>
+    `;
+    }).join('');
+  }
+
+  window.selectMyHouseholdForMeal = function () {
+    const householdIds = myHouseholdAttendees.map(function (p) { return p.id; });
+    document.querySelectorAll('.meal-attendee-cb').forEach(function (cb) {
+      cb.checked = householdIds.includes(cb.value);
+    });
   };
 
   function renderMealCooksPicker(checkedCookIds) {
@@ -1185,20 +1217,21 @@
     const day = document.getElementById('mealDay').value;
     const slot = document.getElementById('mealSlot').value;
     const isHome = document.getElementById('locHome').checked;
+    const mealAttendees = Array.from(document.querySelectorAll('.meal-attendee-cb:checked')).map(function (cb) { return cb.value; });
 
     let mealData;
     if (isHome) {
       const name = document.getElementById('mealEntreeName').value.trim();
       if (!name) { errEl.textContent = 'Please enter an entree name.'; errEl.classList.remove('hidden'); return; }
       const cooks = Array.from(document.querySelectorAll('.meal-cook-cb:checked')).map(function (cb) { return cb.value; });
-      mealData = { day: day, slot: slot, locationType: 'home', name: name, cooks: cooks, notes: '' };
+      mealData = { day: day, slot: slot, locationType: 'home', name: name, cooks: cooks, attendees: mealAttendees, notes: '' };
     } else {
       const name = document.getElementById('mealRestaurantName').value.trim();
       if (!name) { errEl.textContent = 'Please enter a restaurant name.'; errEl.classList.remove('hidden'); return; }
       const time = document.getElementById('mealTime').value;
       const address = document.getElementById('mealAddress').value.trim();
       const notes = document.getElementById('mealOutNotes').value.trim();
-      mealData = { day: day, slot: slot, locationType: 'out', name: name, time: time, address: address, notes: notes };
+      mealData = { day: day, slot: slot, locationType: 'out', name: name, time: time, address: address, attendees: mealAttendees, notes: notes };
     }
 
     // Validate ingredient rows before writing anything
@@ -1981,6 +2014,12 @@
     return (a.taggedPeople || []).some(pid => itineraryFilterSet.has(pid));
   }
 
+  function mealPassesFilter(m) {
+    if (itineraryFilterSet.size === 0) return true;
+    if (!m.attendees) return true; // legacy meals created before tagging existed — always show
+    return m.attendees.some(pid => itineraryFilterSet.has(pid));
+  }
+
   function renderItineraryFilterRow() {
     const el = document.getElementById('itineraryFilterRow');
     if (!el) return;
@@ -1997,7 +2036,7 @@
       : '';
 
     el.innerHTML = `
-      <div class="include-submenu-label">Filter by person — default shows the full trip itinerary (meals always show regardless of filter for now)</div>
+      <div class="include-submenu-label">Filter by person — default shows the full trip itinerary</div>
       <div class="include-pills">${householdPill}${personPills}${clearBtn}</div>
     `;
   }
@@ -2035,7 +2074,7 @@
     const slotOrder = { breakfast: 0, lunch: 1, dinner: 2, snack: 3, other: 4 };
 
     dateRange(trip.startDate, trip.endDate).forEach(day => {
-      const dayMeals = meals.filter(m => m.day === day).slice().sort((a, b) => (slotOrder[a.slot] ?? 9) - (slotOrder[b.slot] ?? 9));
+      const dayMeals = meals.filter(m => m.day === day).filter(mealPassesFilter).slice().sort((a, b) => (slotOrder[a.slot] ?? 9) - (slotOrder[b.slot] ?? 9));
       const dayActivities = activities.filter(a => a.day === day).filter(activityPassesFilter).slice().sort((a, b) => (a.time || '99:99').localeCompare(b.time || '99:99'));
 
       const dayCard = document.createElement('div');
@@ -2329,13 +2368,13 @@
         <p class="itin-sub">${formatDateRange(trip.startDate, trip.endDate)}</p>
         ${trip.lodgingLink ? `<p class="itin-sub">Lodging: ${escapeHtml(trip.lodgingLink)}</p>` : ''}
         <p class="itin-sub">Attendees: ${attendees.map(a => escapeHtml(a.name)).join(', ')}</p>
-        ${itineraryFilterSet.size ? `<p class="itin-sub"><strong>Filtered to:</strong> ${Array.from(itineraryFilterSet).map(pid => escapeHtml(attendeesById[pid]?.name || '?')).join(', ')} (activities only — meals always show)</p>` : ''}
+        ${itineraryFilterSet.size ? `<p class="itin-sub"><strong>Filtered to:</strong> ${Array.from(itineraryFilterSet).map(pid => escapeHtml(attendeesById[pid]?.name || '?')).join(', ')}</p>` : ''}
         ${trip.notes ? `<p class="itin-notes"><strong>Notes:</strong> ${escapeHtml(trip.notes)}</p>` : ''}
       </div>
     `;
 
     dateRange(trip.startDate, trip.endDate).forEach(day => {
-      const dayMeals = meals.filter(m => m.day === day).slice().sort((a, b) => (slotOrder[a.slot] ?? 9) - (slotOrder[b.slot] ?? 9));
+      const dayMeals = meals.filter(m => m.day === day).filter(mealPassesFilter).slice().sort((a, b) => (slotOrder[a.slot] ?? 9) - (slotOrder[b.slot] ?? 9));
       const dayActivities = activities.filter(a => a.day === day).filter(activityPassesFilter).slice().sort((a, b) => (a.time || '99:99').localeCompare(b.time || '99:99'));
       if (dayMeals.length === 0 && dayActivities.length === 0) return;
 

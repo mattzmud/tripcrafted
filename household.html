@@ -40,6 +40,9 @@
   <a href="index.html" style="text-decoration:none;"><div class="logo">🧭 TripCrafted</div></a>
   <nav>
     <a href="index.html">Dashboard</a>
+    <a href="household.html">Household</a>
+    <a href="profile.html">Profile</a>
+    <a href="#" onclick="window.doLogout(); return false;">Log out</a>
   </nav>
 </header>
 
@@ -73,13 +76,14 @@
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
-  import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+  import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
   import {
     getFirestore, doc, getDoc, getDocs, addDoc, setDoc, updateDoc, collection,
     query, where, arrayUnion, arrayRemove, serverTimestamp
   } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
   import { VERSION } from './version.js';
   const { firebaseConfig, WORKER_URL } = await import(`./firebase-config.js?v=${VERSION}`);
+  const { resolvePersonForInvite } = await import(`./invite-helpers.js?v=${VERSION}`);
 
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
@@ -88,6 +92,11 @@
   let currentUser = null;
   let currentPerson = null;
   let currentHousehold = null;
+
+  window.doLogout = async function () {
+    await signOut(auth);
+    window.location.href = 'index.html';
+  };
 
   onAuthStateChanged(auth, async (user) => {
     if (!user) { window.location.href = 'index.html'; return; }
@@ -169,37 +178,38 @@
       return;
     }
 
-    // Create the person doc now (no authUid yet — setup.html attaches it on signup)
-    const personRef = await addDoc(collection(db, 'people'), {
-      name, email, authUid: null,
-      householdId: currentHousehold.id, isProfileOnly: false,
-      createdAt: serverTimestamp()
-    });
-    await updateDoc(doc(db, 'households', currentHousehold.id), {
-      memberIds: arrayUnion(personRef.id)
+    const { personId, authUid, alreadyLinked } = await resolvePersonForInvite(db, {
+      name, email, householdId: currentHousehold.id,
+      context: { type: 'household', id: currentHousehold.id }
     });
 
-    const token = crypto.randomUUID();
-    await setDoc(doc(db, 'invites', token), {
-      type: 'household', targetId: currentHousehold.id, personId: personRef.id,
-      name, email, invitedBy: currentPerson.name,
-      used: false, createdAt: serverTimestamp()
-    });
+    const householdUpdates = { memberIds: arrayUnion(personId) };
+    if (alreadyLinked) householdUpdates.memberUids = arrayUnion(authUid);
+    await updateDoc(doc(db, 'households', currentHousehold.id), householdUpdates);
 
-    const link = `${window.location.origin}${window.location.pathname.replace('household.html','')}setup.html?invite=${token}`;
-    try {
-      await fetch(WORKER_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'send-invite',
-          to: email, inviteeName: name, inviterName: currentPerson.name,
-          context: `the "${currentHousehold.name}" household`,
-          link
-        })
+    if (!alreadyLinked) {
+      const token = crypto.randomUUID();
+      await setDoc(doc(db, 'invites', token), {
+        type: 'household', targetId: currentHousehold.id, personId,
+        name, email, invitedBy: currentPerson.name,
+        used: false, createdAt: serverTimestamp()
       });
-    } catch (e) {
-      console.error('Invite email failed to send:', e);
+
+      const link = `${window.location.origin}${window.location.pathname.replace('household.html', '')}setup.html?invite=${token}`;
+      try {
+        await fetch(WORKER_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'send-invite',
+            to: email, inviteeName: name, inviterName: currentPerson.name,
+            context: `the "${currentHousehold.name}" household`,
+            link
+          })
+        });
+      } catch (e) {
+        console.error('Invite email failed to send:', e);
+      }
     }
 
     document.getElementById('inviteName').value = '';

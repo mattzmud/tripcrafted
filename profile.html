@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Profile — TripCrafted</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800&family=Nunito+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #F8F6F0; --card: #FFFFFF; --green: #4CAF50; --purple: #7C3AED;
+    --text: #1A1A2E; --muted: #6B7280; --border: #E5E0D8;
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family:'Nunito Sans', sans-serif; padding-bottom:60px; }
+  h1,h2,h3,label { font-family:'Nunito', sans-serif; font-weight:800; }
+  header { background:var(--card); border-bottom:1px solid var(--border); padding:16px 20px; display:flex; justify-content:space-between; align-items:center; position:sticky; top:0; }
+  header .logo { font-family:'Nunito', sans-serif; font-weight:800; font-size:20px; color:var(--green); text-decoration:none; }
+  header nav a { margin-left:16px; color:var(--muted); text-decoration:none; font-weight:600; font-size:14px; }
+  main { max-width:640px; margin:0 auto; padding:24px 20px; }
+  .card { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:20px; margin-bottom:16px; }
+  input { width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:8px; font-size:15px; margin-top:6px; margin-bottom:14px; background:var(--bg); color:var(--text); }
+  label { font-size:13px; color:var(--muted); display:block; text-transform:uppercase; letter-spacing:0.03em; }
+  button { font-family:'Nunito', sans-serif; font-weight:700; border:none; border-radius:8px; padding:11px 18px; font-size:15px; cursor:pointer; }
+  .btn-primary { background:var(--green); color:white; }
+  .btn-secondary { background:var(--card); color:var(--purple); border:1.5px solid var(--purple); }
+  .btn-text { background:transparent; color:var(--muted); }
+  .field-row { display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid var(--border); }
+  .field-row:last-child { border-bottom:none; }
+  .field-label { font-size:13px; color:var(--muted); text-transform:uppercase; letter-spacing:0.03em; }
+  .field-value { font-weight:700; font-size:15px; }
+  .trip-row { display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid var(--border); cursor:pointer; }
+  .trip-row:last-child { border-bottom:none; }
+  .trip-row:hover { color: var(--green); }
+  .trip-row-name { font-weight:700; }
+  .trip-row-dates { color:var(--muted); font-size:13px; }
+  .error-text { color:#C0392B; font-size:13px; margin-top:-8px; margin-bottom:12px; }
+  .success-text { color:#2E7D32; font-size:13px; margin-top:-8px; margin-bottom:12px; }
+  .hidden { display:none !important; }
+  .empty-state { text-align:center; padding:20px; color:var(--muted); font-size:14px; }
+  .muted-note { color:var(--muted); font-size:14px; }
+</style>
+</head>
+<body>
+
+<header>
+  <a href="index.html" class="logo">🧭 TripCrafted</a>
+  <nav>
+    <a href="index.html">Dashboard</a>
+    <a href="household.html">Household</a>
+    <a href="profile.html">Profile</a>
+    <a href="#" onclick="window.doLogout(); return false;">Log out</a>
+  </nav>
+</header>
+
+<main>
+  <h2>Profile</h2>
+
+  <div class="card">
+    <div class="field-row">
+      <span class="field-label">Name</span>
+      <span class="field-value" id="profileName"></span>
+    </div>
+    <div class="field-row">
+      <span class="field-label">Email</span>
+      <span class="field-value" id="profileEmail"></span>
+    </div>
+    <div class="field-row">
+      <span class="field-label">Household</span>
+      <span class="field-value" id="profileHousehold"></span>
+    </div>
+  </div>
+
+  <div class="card" id="passwordCard">
+    <h3 style="margin-top:0;">Change Password</h3>
+    <div id="googleAuthNote" class="muted-note hidden">You sign in with Google, so there's no password to change here.</div>
+    <div id="passwordForm">
+      <label>Current Password</label>
+      <input type="password" id="currentPassword">
+      <label>New Password</label>
+      <input type="password" id="newPassword" placeholder="At least 6 characters">
+      <label>Confirm New Password</label>
+      <input type="password" id="confirmPassword">
+      <div id="passwordError" class="error-text hidden"></div>
+      <div id="passwordSuccess" class="success-text hidden">Password updated.</div>
+      <button class="btn-primary" onclick="window.changePassword()">Update Password</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0;">Past Trips</h3>
+    <div id="pastTripsList"></div>
+    <div id="pastTripsEmpty" class="empty-state hidden">No past trips yet.</div>
+  </div>
+</main>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+  import {
+    getAuth, onAuthStateChanged, signOut, EmailAuthProvider,
+    reauthenticateWithCredential, updatePassword
+  } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+  import {
+    getFirestore, collection, doc, getDoc, getDocs, query, where
+  } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+  import { VERSION } from './version.js';
+  const { firebaseConfig } = await import(`./firebase-config.js?v=${VERSION}`);
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  let currentUser = null;
+  let currentPerson = null;
+
+  onAuthStateChanged(auth, async (user) => {
+    if (!user) { window.location.href = 'index.html'; return; }
+    currentUser = user;
+
+    const personQ = query(collection(db, 'people'), where('authUid', '==', user.uid));
+    const personSnap = await getDocs(personQ);
+    if (personSnap.empty) { window.location.href = 'index.html'; return; }
+    currentPerson = { id: personSnap.docs[0].id, ...personSnap.docs[0].data() };
+
+    document.getElementById('profileName').textContent = currentPerson.name || '';
+    document.getElementById('profileEmail').textContent = currentPerson.email || user.email || '';
+
+    if (currentPerson.householdId) {
+      const hhSnap = await getDoc(doc(db, 'households', currentPerson.householdId));
+      document.getElementById('profileHousehold').textContent = hhSnap.exists() ? hhSnap.data().name : '\u2014';
+    } else {
+      document.getElementById('profileHousehold').textContent = '\u2014';
+    }
+
+    const isGoogleUser = user.providerData.some(function (p) { return p.providerId === 'google.com'; }) &&
+      !user.providerData.some(function (p) { return p.providerId === 'password'; });
+    if (isGoogleUser) {
+      document.getElementById('googleAuthNote').classList.remove('hidden');
+      document.getElementById('passwordForm').classList.add('hidden');
+    }
+
+    await loadPastTrips();
+  });
+
+  async function loadPastTrips() {
+    const q = query(collection(db, 'trips'), where('attendeeUids', 'array-contains', currentUser.uid));
+    const snap = await getDocs(q);
+    const trips = [];
+    snap.forEach(function (d) { trips.push({ id: d.id, ...d.data() }); });
+    const today = new Date().toISOString().slice(0, 10);
+    const past = trips.filter(function (t) { return t.endDate && t.endDate < today; });
+    past.sort(function (a, b) { return (b.startDate || '').localeCompare(a.startDate || ''); });
+    renderPastTrips(past);
+  }
+
+  function renderPastTrips(trips) {
+    const listEl = document.getElementById('pastTripsList');
+    const emptyEl = document.getElementById('pastTripsEmpty');
+    listEl.innerHTML = '';
+    if (trips.length === 0) { emptyEl.classList.remove('hidden'); return; }
+    emptyEl.classList.add('hidden');
+    trips.forEach(function (trip) {
+      const row = document.createElement('div');
+      row.className = 'trip-row';
+      row.innerHTML = `
+        <div>
+          <div class="trip-row-name">${escapeHtml(trip.name)}</div>
+          ${trip.destination ? `<div class="trip-row-dates">\u{1F4CD} ${escapeHtml(trip.destination)}</div>` : ''}
+        </div>
+        <div class="trip-row-dates">${formatDateRange(trip.startDate, trip.endDate)}</div>
+      `;
+      row.onclick = function () { window.location.href = `trip.html?trip=${trip.id}`; };
+      listEl.appendChild(row);
+    });
+  }
+
+  window.changePassword = async function () {
+    const errEl = document.getElementById('passwordError');
+    const successEl = document.getElementById('passwordSuccess');
+    errEl.classList.add('hidden');
+    successEl.classList.add('hidden');
+
+    const currentPw = document.getElementById('currentPassword').value;
+    const newPw = document.getElementById('newPassword').value;
+    const confirmPw = document.getElementById('confirmPassword').value;
+
+    if (!currentPw || !newPw) {
+      errEl.textContent = 'Please fill in both your current and new password.';
+      errEl.classList.remove('hidden');
+      return;
+    }
+    if (newPw.length < 6) {
+      errEl.textContent = 'New password must be at least 6 characters.';
+      errEl.classList.remove('hidden');
+      return;
+    }
+    if (newPw !== confirmPw) {
+      errEl.textContent = 'New password and confirmation don\'t match.';
+      errEl.classList.remove('hidden');
+      return;
+    }
+
+    try {
+      const credential = EmailAuthProvider.credential(currentUser.email, currentPw);
+      await reauthenticateWithCredential(currentUser, credential);
+      await updatePassword(currentUser, newPw);
+      successEl.classList.remove('hidden');
+      document.getElementById('currentPassword').value = '';
+      document.getElementById('newPassword').value = '';
+      document.getElementById('confirmPassword').value = '';
+    } catch (e) {
+      if (e.code && (e.code.includes('wrong-password') || e.code.includes('invalid-credential'))) {
+        errEl.textContent = 'Current password is incorrect.';
+      } else {
+        errEl.textContent = 'Something went wrong. Please try again.';
+      }
+      errEl.classList.remove('hidden');
+    }
+  };
+
+  window.doLogout = async function () {
+    await signOut(auth);
+    window.location.href = 'index.html';
+  };
+
+  function formatDateRange(start, end) {
+    if (!start) return '';
+    const opts = { month: 'short', day: 'numeric', year: 'numeric' };
+    const s = new Date(start + 'T00:00:00').toLocaleDateString('en-US', opts);
+    const e = end ? new Date(end + 'T00:00:00').toLocaleDateString('en-US', opts) : '';
+    return e ? `${s} \u2013 ${e}` : s;
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str || '';
+    return div.innerHTML;
+  }
+</script>
+</body>
+</html>

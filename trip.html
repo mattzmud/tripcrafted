@@ -305,6 +305,7 @@
     <div class="section-header">
       <h3 style="margin:0;">Trip Calendar</h3>
     </div>
+    <div id="itineraryFilterRow" class="include-submenu"></div>
     <div id="calendarList"></div>
   </div>
 
@@ -627,6 +628,14 @@
     <label>Details</label>
     <textarea id="activityDetails" placeholder="Free-form notes — reservation info, what to bring, etc."></textarea>
 
+    <label>Who's Attending</label>
+    <div id="activityAttendeesPicker"></div>
+
+    <div class="checkbox-row">
+      <input type="checkbox" id="activityFullItinerary">
+      <label for="activityFullItinerary">Always show in the full trip itinerary, regardless of who's tagged</label>
+    </div>
+
     <div id="activityError" class="error-text hidden"></div>
 
     <div class="row" style="margin-top:20px;">
@@ -698,6 +707,7 @@
   let householdRoster = [];       // ALL members of your household (not just those on this trip)
   let activePackingTarget = null; // {type:'person', id} or {type:'household', id}
   let packingIncludeSet = new Set(); // personIds folded into the household packing view
+  let itineraryFilterSet = new Set(); // personIds to filter the calendar/itinerary by (empty = show everyone)
   let editingPackingId = null;
   let editAttendeeIds = [];       // working copy while the Edit Trip modal is open
   let editAttendeeUids = {};      // personId -> authUid, for building attendeeUids on save
@@ -1930,11 +1940,15 @@
   function buildActivityCard(activity) {
     const card = document.createElement('div');
     card.className = 'card activity-card';
+    const taggedNames = (activity.taggedPeople || []).map(pid => attendeesById[pid]?.name).filter(Boolean);
+    const isEveryone = attendees.length > 0 && taggedNames.length === attendees.length;
     card.innerHTML = `
       <div style="flex:1;">
         ${activity.time ? `<div class="activity-time">${formatTime(activity.time)}</div>` : ''}
         <div class="activity-name">${escapeHtml(activity.name)}</div>
         ${activity.details ? `<div class="activity-details">${escapeHtml(activity.details)}</div>` : ''}
+        ${!isEveryone && taggedNames.length ? `<div class="meal-meta" style="margin-top:4px;">Tagged: ${escapeHtml(taggedNames.join(', '))}</div>` : ''}
+        ${activity.showInFullItinerary ? '<span class="tag-chip">Always in full itinerary</span>' : ''}
       </div>
     `;
     const actions = document.createElement('div');
@@ -1961,15 +1975,68 @@
   }
 
   // ---------- Calendar ----------
+  function activityPassesFilter(a) {
+    if (itineraryFilterSet.size === 0) return true;
+    if (a.showInFullItinerary) return true;
+    return (a.taggedPeople || []).some(pid => itineraryFilterSet.has(pid));
+  }
+
+  function renderItineraryFilterRow() {
+    const el = document.getElementById('itineraryFilterRow');
+    if (!el) return;
+    const householdIds = myHouseholdAttendees.map(p => p.id);
+    const householdActive = householdIds.length > 0 && householdIds.every(id => itineraryFilterSet.has(id));
+
+    const householdPill = `<button type="button" class="include-pill${householdActive ? ' active' : ''}" onclick="window.toggleHouseholdItineraryFilter()">My Household</button>`;
+    const personPills = attendees.map(p => {
+      const isActive = itineraryFilterSet.has(p.id);
+      return `<button type="button" class="include-pill${isActive ? ' active' : ''}" onclick="window.toggleItineraryFilter('${p.id}')">${escapeHtml(p.name)}</button>`;
+    }).join('');
+    const clearBtn = itineraryFilterSet.size
+      ? `<button type="button" class="include-pill clear-pill" onclick="window.clearItineraryFilter()">Full Itinerary</button>`
+      : '';
+
+    el.innerHTML = `
+      <div class="include-submenu-label">Filter by person — default shows the full trip itinerary (meals always show regardless of filter for now)</div>
+      <div class="include-pills">${householdPill}${personPills}${clearBtn}</div>
+    `;
+  }
+
+  window.toggleItineraryFilter = function (personId) {
+    if (itineraryFilterSet.has(personId)) itineraryFilterSet.delete(personId);
+    else itineraryFilterSet.add(personId);
+    renderItineraryFilterRow();
+    renderCalendar();
+  };
+
+  window.toggleHouseholdItineraryFilter = function () {
+    const ids = myHouseholdAttendees.map(p => p.id);
+    const allSelected = ids.length > 0 && ids.every(id => itineraryFilterSet.has(id));
+    if (allSelected) {
+      ids.forEach(id => itineraryFilterSet.delete(id));
+    } else {
+      ids.forEach(id => itineraryFilterSet.add(id));
+    }
+    renderItineraryFilterRow();
+    renderCalendar();
+  };
+
+  window.clearItineraryFilter = function () {
+    itineraryFilterSet.clear();
+    renderItineraryFilterRow();
+    renderCalendar();
+  };
+
   function renderCalendar() {
     const listEl = document.getElementById('calendarList');
     if (!listEl || !trip) return;
+    renderItineraryFilterRow();
     listEl.innerHTML = '';
     const slotOrder = { breakfast: 0, lunch: 1, dinner: 2, snack: 3, other: 4 };
 
     dateRange(trip.startDate, trip.endDate).forEach(day => {
       const dayMeals = meals.filter(m => m.day === day).slice().sort((a, b) => (slotOrder[a.slot] ?? 9) - (slotOrder[b.slot] ?? 9));
-      const dayActivities = activities.filter(a => a.day === day).slice().sort((a, b) => (a.time || '99:99').localeCompare(b.time || '99:99'));
+      const dayActivities = activities.filter(a => a.day === day).filter(activityPassesFilter).slice().sort((a, b) => (a.time || '99:99').localeCompare(b.time || '99:99'));
 
       const dayCard = document.createElement('div');
       dayCard.className = 'card calendar-day';
@@ -2008,12 +2075,16 @@
       document.getElementById('activityTime').value = activity.time || '';
       document.getElementById('activityName').value = activity.name || '';
       document.getElementById('activityDetails').value = activity.details || '';
+      document.getElementById('activityFullItinerary').checked = !!activity.showInFullItinerary;
+      renderActivityAttendeesPicker(activity.taggedPeople && activity.taggedPeople.length ? activity.taggedPeople : attendees.map(a => a.id));
     } else {
       document.getElementById('activityModalTitle').textContent = 'Add Activity';
       document.getElementById('activitySaveBtn').textContent = 'Save Activity';
       document.getElementById('activityTime').value = '';
       document.getElementById('activityName').value = '';
       document.getElementById('activityDetails').value = '';
+      document.getElementById('activityFullItinerary').checked = false;
+      renderActivityAttendeesPicker(attendees.map(a => a.id)); // everyone checked by default
     }
 
     document.getElementById('activityModalOverlay').classList.add('open');
@@ -2023,6 +2094,15 @@
     editingActivityId = null;
   };
 
+  function renderActivityAttendeesPicker(checkedIds) {
+    document.getElementById('activityAttendeesPicker').innerHTML = attendees.map(p => `
+      <div class="checkbox-row">
+        <input type="checkbox" class="activity-attendee-cb" value="${p.id}" id="actAttendee_${p.id}" ${checkedIds.includes(p.id) ? 'checked' : ''}>
+        <label for="actAttendee_${p.id}">${escapeHtml(p.name)}</label>
+      </div>
+    `).join('');
+  }
+
   window.saveActivity = async function () {
     const errEl = document.getElementById('activityError');
     errEl.classList.add('hidden');
@@ -2031,8 +2111,10 @@
     const day = document.getElementById('activityDay').value;
     const time = document.getElementById('activityTime').value;
     const details = document.getElementById('activityDetails').value.trim();
+    const taggedPeople = Array.from(document.querySelectorAll('.activity-attendee-cb:checked')).map(cb => cb.value);
+    const showInFullItinerary = document.getElementById('activityFullItinerary').checked;
 
-    const activityData = { day, time, name, details };
+    const activityData = { day, time, name, details, taggedPeople, showInFullItinerary };
 
     if (editingActivityId) {
       await updateDoc(doc(db, 'trips', tripId, 'activities', editingActivityId), activityData);
@@ -2247,13 +2329,14 @@
         <p class="itin-sub">${formatDateRange(trip.startDate, trip.endDate)}</p>
         ${trip.lodgingLink ? `<p class="itin-sub">Lodging: ${escapeHtml(trip.lodgingLink)}</p>` : ''}
         <p class="itin-sub">Attendees: ${attendees.map(a => escapeHtml(a.name)).join(', ')}</p>
+        ${itineraryFilterSet.size ? `<p class="itin-sub"><strong>Filtered to:</strong> ${Array.from(itineraryFilterSet).map(pid => escapeHtml(attendeesById[pid]?.name || '?')).join(', ')} (activities only — meals always show)</p>` : ''}
         ${trip.notes ? `<p class="itin-notes"><strong>Notes:</strong> ${escapeHtml(trip.notes)}</p>` : ''}
       </div>
     `;
 
     dateRange(trip.startDate, trip.endDate).forEach(day => {
       const dayMeals = meals.filter(m => m.day === day).slice().sort((a, b) => (slotOrder[a.slot] ?? 9) - (slotOrder[b.slot] ?? 9));
-      const dayActivities = activities.filter(a => a.day === day).slice().sort((a, b) => (a.time || '99:99').localeCompare(b.time || '99:99'));
+      const dayActivities = activities.filter(a => a.day === day).filter(activityPassesFilter).slice().sort((a, b) => (a.time || '99:99').localeCompare(b.time || '99:99'));
       if (dayMeals.length === 0 && dayActivities.length === 0) return;
 
       html += `<div class="itin-day"><h2>${formatDayLabel(day)}</h2>`;

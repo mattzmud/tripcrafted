@@ -221,6 +221,12 @@
   }
   .include-pill.active { background: var(--secondary); border-color: var(--secondary); color: white; }
   .include-pill.clear-pill { color: #C0392B; border-color: #C0392B; background: none; }
+  .unassigned-banner {
+    border: 2px solid #C0392B; color: #C0392B; background: rgba(192,57,43,0.06);
+    border-radius: 10px; padding: 12px 16px; margin-bottom: 20px;
+    font-weight: 700; font-size: 14px; display: flex; align-items: flex-start; gap: 8px;
+  }
+  .unassigned-banner a { color: #C0392B; text-decoration: underline; }
 
   .itinerary-print { display: none; }
   .itinerary-print h1 { font-size: 24px; margin-bottom: 2px; }
@@ -317,6 +323,14 @@
     <div class="section-header">
       <h3 style="margin:0;">Supplies</h3>
       <button class="btn-primary" onclick="window.openSupplyModal()">+ Add Supply</button>
+    </div>
+    <div id="unassignedSupplyBanner" class="unassigned-banner hidden">
+      <span>❗</span>
+      <span>Some supplies don't have anyone assigned to bring them — check the <a href="#unassignedSuppliesSection">Unassigned Supplies</a> section below.</span>
+    </div>
+    <div id="unassignedSuppliesSection" class="hidden" style="margin-bottom:20px;">
+      <h3 style="color:#C0392B;">Unassigned Supplies</h3>
+      <div id="unassignedSuppliesList"></div>
     </div>
     <div id="suppliesList"></div>
     <div id="suppliesEmpty" class="empty-state hidden">No supplies added yet.</div>
@@ -1233,16 +1247,37 @@
   function renderSupplies() {
     const listEl = document.getElementById('suppliesList');
     const emptyEl = document.getElementById('suppliesEmpty');
-    const supplies = items.filter(function (i) { return i.type === 'supply'; });
-    listEl.innerHTML = '';
-    if (supplies.length === 0) { emptyEl.classList.remove('hidden'); return; }
-    emptyEl.classList.add('hidden');
+    const unassignedListEl = document.getElementById('unassignedSuppliesList');
+    const unassignedSectionEl = document.getElementById('unassignedSuppliesSection');
+    const bannerEl = document.getElementById('unassignedSupplyBanner');
 
+    const supplies = items.filter(function (i) { return i.type === 'supply'; });
+    const unassigned = supplies.filter(function (s) { return !(s.taggedPeople || []).length; });
+    const assigned = supplies.filter(function (s) { return (s.taggedPeople || []).length > 0; });
+
+    listEl.innerHTML = '';
+    if (assigned.length === 0) { emptyEl.classList.remove('hidden'); } else { emptyEl.classList.add('hidden'); }
+    renderSupplyGroup(listEl, assigned);
+
+    if (unassigned.length > 0) {
+      unassignedSectionEl.classList.remove('hidden');
+      bannerEl.classList.remove('hidden');
+      unassignedListEl.innerHTML = '';
+      renderSupplyGroup(unassignedListEl, unassigned);
+    } else {
+      unassignedSectionEl.classList.add('hidden');
+      bannerEl.classList.add('hidden');
+      unassignedListEl.innerHTML = '';
+    }
+  }
+
+  function renderSupplyGroup(containerEl, supplyList) {
     const byCategory = {};
-    supplies.forEach(function (s) { (byCategory[s.category || 'Other'] = byCategory[s.category || 'Other'] || []).push(s); });
+    supplyList.forEach(function (s) { (byCategory[s.category || 'Other'] = byCategory[s.category || 'Other'] || []).push(s); });
 
     CATEGORIES.forEach(function (cat) {
       if (!byCategory[cat]) return;
+      byCategory[cat].sort(function (a, b) { return a.name.localeCompare(b.name); });
       const group = document.createElement('div');
       group.className = 'category-group';
       group.innerHTML = `<div class="category-label">${cat}</div>`;
@@ -1256,7 +1291,7 @@
         card.innerHTML = `
           <div>
             <div class="meal-name">${escapeHtml(supply.name)} ${formatQty(supply)}</div>
-            ${names ? `<div class="meal-meta">Bringing: ${escapeHtml(names)}</div>` : ''}
+            ${names ? `<div class="meal-meta">Bringing: ${escapeHtml(names)}</div>` : '<div class="meal-meta" style="color:#C0392B;">No one assigned yet</div>'}
             ${supply.needsPurchase ? '<span class="tag-chip">To buy</span>' : ''}
             ${supply.notes ? `<div class="meal-meta" style="margin-top:4px;">${escapeHtml(supply.notes)}</div>` : ''}
           </div>
@@ -1276,7 +1311,7 @@
         card.appendChild(actions);
         group.appendChild(card);
       });
-      listEl.appendChild(group);
+      containerEl.appendChild(group);
     });
   }
 
@@ -1377,6 +1412,7 @@
 
     CATEGORIES.forEach(function (cat) {
       if (!byCategory[cat]) return;
+      byCategory[cat].sort(function (a, b) { return a.name.localeCompare(b.name); });
       const header = document.createElement('div');
       header.className = 'category-label';
       header.textContent = cat;
@@ -1506,6 +1542,7 @@
 
     CATEGORIES.forEach(cat => {
       if (!byCategory[cat]) return;
+      byCategory[cat].sort((a, b) => a.name.localeCompare(b.name));
       const header = document.createElement('div');
       header.className = 'category-label';
       header.textContent = cat;

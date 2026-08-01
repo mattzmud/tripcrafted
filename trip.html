@@ -59,6 +59,11 @@
     background: rgba(255,255,255,0.2); padding: 6px 14px; border-radius: 8px; display: inline-block;
   }
   .trip-lodging a:hover { background: rgba(255,255,255,0.3); }
+  .trip-notes {
+    margin-top: 12px; padding: 10px 14px; background: rgba(255,255,255,0.15);
+    border-radius: 8px; color: white; font-size: 14px; white-space: pre-wrap;
+  }
+  .trip-notes-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: rgba(255,255,255,0.7); font-weight: 700; margin-bottom: 4px; }
   .tabs { display: flex; gap: 8px; margin-bottom: 20px; border-bottom: 1px solid var(--border); overflow-x: auto; white-space: nowrap; }
   .tab-btn { flex-shrink: 0; }
   .tab-btn {
@@ -272,6 +277,7 @@
     <div class="dates" id="tripDestination" style="margin-top:2px;"></div>
     <div class="trip-attendees" id="tripAttendees"></div>
     <div class="trip-lodging" id="tripLodging"></div>
+    <div class="trip-notes hidden" id="tripNotes"></div>
     <button class="edit-trip-btn" onclick="window.openAddHouseholdModal()">+ Add From My Household</button>
     <button class="edit-trip-btn hidden" id="editTripBtn" onclick="window.openEditTripModal()">Edit Trip</button>
     <button class="edit-trip-btn hidden" id="deleteTripBtn" onclick="window.deleteTrip()" style="background:rgba(192,57,43,0.3);">Delete Trip</button>
@@ -763,6 +769,15 @@
       lodgingEl.innerHTML = `<a href="${escapeHtml(trip.lodgingLink)}" target="_blank" rel="noopener">🏠 Lodging</a>`;
     } else {
       lodgingEl.innerHTML = '';
+    }
+
+    const notesEl = document.getElementById('tripNotes');
+    if (trip.notes) {
+      notesEl.innerHTML = `<div class="trip-notes-label">Notes</div>${escapeHtml(trip.notes)}`;
+      notesEl.classList.remove('hidden');
+    } else {
+      notesEl.classList.add('hidden');
+      notesEl.innerHTML = '';
     }
   }
 

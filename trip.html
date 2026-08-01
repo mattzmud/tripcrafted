@@ -134,6 +134,9 @@
   }
   .ingredient-row-top { display: flex; gap: 8px; }
   .ingredient-row-top input, .ingredient-row-top select { margin-bottom: 8px; }
+  .multi-item-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+  .multi-item-row input.multi-item-name { flex: 2; margin-bottom: 0; }
+  .multi-item-row input.multi-item-qty { flex: 0 0 70px; margin-bottom: 0; }
   .remove-row-btn { background: none; border: none; color: #C0392B; cursor: pointer; font-size: 18px; padding: 4px 8px; }
   .base-qty-wrap { max-width: 140px; }
   .modal-overlay {
@@ -355,7 +358,7 @@
   <div class="tab-panel" id="tab-supplies">
     <div class="section-header">
       <h3 style="margin:0;">Supplies</h3>
-      <button class="btn-primary" onclick="window.openSupplyModal()">+ Add Supply</button>
+      <button class="btn-primary" onclick="window.openSupplyAddModal()">+ Add Supply</button>
     </div>
     <input type="text" id="suppliesSearch" placeholder="Search supplies..." oninput="window.renderSupplies()" style="margin-bottom:16px;">
     <div id="unassignedSupplyBanner" class="unassigned-banner hidden">
@@ -418,7 +421,7 @@
       <h3 style="margin:0;" id="packingListTitle">Packing List</h3>
       <div class="row" style="gap:8px;">
         <button class="btn-secondary" onclick="window.print()">🖨️ Print</button>
-        <button class="btn-primary" onclick="window.openPackingModal()">+ Add Item</button>
+        <button class="btn-primary" onclick="window.openPackingAddModal()">+ Add Item</button>
       </div>
     </div>
     <input type="text" id="packingSearch" placeholder="Search your packing list..." oninput="window.renderPackingList()" style="margin-bottom:16px;">
@@ -595,6 +598,88 @@
     <div class="row" style="margin-top:20px;">
       <button class="btn-text" onclick="window.closeAddHouseholdModal()">Cancel</button>
       <button class="btn-primary" style="flex:1;" onclick="window.saveAddHousehold()">Add Selected</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADD MULTIPLE SUPPLIES MODAL -->
+<div class="modal-overlay" id="supplyAddModalOverlay">
+  <div class="modal">
+    <h2>Add Supplies</h2>
+    <p style="color:var(--muted); font-size:13px; margin-top:-10px;">Add several items at once — they'll share the same category, bringer(s), and purchase status.</p>
+
+    <label>Category</label>
+    <select id="supplyAddCategory">
+      <option value="Food">Food</option>
+      <option value="Toiletries">Toiletries</option>
+      <option value="Medications">Medications</option>
+      <option value="Electronics">Electronics</option>
+      <option value="Clothing">Clothing</option>
+      <option value="Documents">Documents</option>
+      <option value="Other" selected>Other</option>
+    </select>
+
+    <label>Who's Bringing It (optional)</label>
+    <div id="supplyAddBringerPicker"></div>
+
+    <div class="checkbox-row">
+      <input type="checkbox" id="supplyAddNeedsPurchase">
+      <label for="supplyAddNeedsPurchase">These need to be purchased</label>
+    </div>
+
+    <label style="margin-top:10px;">Notes (applies to all items below)</label>
+    <textarea id="supplyAddNotes" placeholder="Optional notes..."></textarea>
+
+    <label style="margin-top:14px;">Items</label>
+    <div id="supplyMultiRows"></div>
+    <button class="btn-secondary" type="button" onclick="window.addSupplyMultiRow()">+ Add Another Item to This Category</button>
+
+    <div id="supplyAddError" class="error-text hidden" style="margin-top:14px;"></div>
+
+    <div class="row" style="margin-top:20px;">
+      <button class="btn-text" onclick="window.closeSupplyAddModal()">Cancel</button>
+      <button class="btn-primary" style="flex:1;" onclick="window.saveSupplyBatch()">Save Items</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADD MULTIPLE PACKING ITEMS MODAL -->
+<div class="modal-overlay" id="packingAddModalOverlay">
+  <div class="modal">
+    <h2>Add Packing Items</h2>
+    <p style="color:var(--muted); font-size:13px; margin-top:-10px;">Add several items at once — they'll share the same category and list.</p>
+
+    <label>Category</label>
+    <select id="packingAddCategory">
+      <option value="Food">Food</option>
+      <option value="Toiletries">Toiletries</option>
+      <option value="Medications">Medications</option>
+      <option value="Electronics">Electronics</option>
+      <option value="Clothing">Clothing</option>
+      <option value="Documents">Documents</option>
+      <option value="Other" selected>Other</option>
+    </select>
+
+    <label>Assign To</label>
+    <select id="packingAddAssignTo"></select>
+
+    <div class="checkbox-row hidden" id="packingAddPrivateRow">
+      <input type="checkbox" id="packingAddPrivate">
+      <label for="packingAddPrivate">Just for me — don't show these on anyone else's view</label>
+    </div>
+
+    <label style="margin-top:10px;">Notes (applies to all items below)</label>
+    <textarea id="packingAddNotes" placeholder="Optional notes..."></textarea>
+
+    <label style="margin-top:14px;">Items</label>
+    <div id="packingMultiRows"></div>
+    <button class="btn-secondary" type="button" onclick="window.addPackingMultiRow()">+ Add Another Item to This List</button>
+
+    <div id="packingAddError" class="error-text hidden" style="margin-top:14px;"></div>
+
+    <div class="row" style="margin-top:20px;">
+      <button class="btn-text" onclick="window.closePackingAddModal()">Cancel</button>
+      <button class="btn-primary" style="flex:1;" onclick="window.savePackingBatch()">Save Items</button>
     </div>
   </div>
 </div>
@@ -1454,6 +1539,84 @@
     renderAll();
   };
 
+  // ---------- Supplies: Add Multiple ----------
+  function buildSimplePeoplePickerHtml(prefix, checkedIds) {
+    checkedIds = checkedIds || [];
+    return attendees.map(function (p) {
+      return `
+        <div class="checkbox-row">
+          <input type="checkbox" class="${prefix}-cb" value="${p.id}" ${checkedIds.includes(p.id) ? 'checked' : ''}>
+          <label style="text-transform:none; font-size:15px; color:var(--text); margin:0;">${escapeHtml(p.name)}</label>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function addMultiItemRow(containerId) {
+    const container = document.getElementById(containerId);
+    const row = document.createElement('div');
+    row.className = 'multi-item-row';
+    row.innerHTML = `
+      <input type="text" class="multi-item-name" placeholder="Item name">
+      <input type="number" step="0.1" class="multi-item-qty" placeholder="Qty" value="1">
+      <button type="button" class="remove-row-btn" onclick="this.closest('.multi-item-row').remove()">✕</button>
+    `;
+    container.appendChild(row);
+  }
+
+  window.addSupplyMultiRow = function () { addMultiItemRow('supplyMultiRows'); };
+
+  window.openSupplyAddModal = function () {
+    document.getElementById('supplyAddError').classList.add('hidden');
+    document.getElementById('supplyAddCategory').value = 'Other';
+    document.getElementById('supplyAddNeedsPurchase').checked = false;
+    document.getElementById('supplyAddNotes').value = '';
+    document.getElementById('supplyAddBringerPicker').innerHTML = buildSimplePeoplePickerHtml('supplyAddBringer', []);
+    document.getElementById('supplyMultiRows').innerHTML = '';
+    window.addSupplyMultiRow();
+    document.getElementById('supplyAddModalOverlay').classList.add('open');
+  };
+  window.closeSupplyAddModal = function () {
+    document.getElementById('supplyAddModalOverlay').classList.remove('open');
+  };
+
+  window.saveSupplyBatch = async function () {
+    const errEl = document.getElementById('supplyAddError');
+    errEl.classList.add('hidden');
+    const category = document.getElementById('supplyAddCategory').value;
+    const needsPurchase = document.getElementById('supplyAddNeedsPurchase').checked;
+    const notes = document.getElementById('supplyAddNotes').value.trim();
+    const taggedPeople = Array.from(document.querySelectorAll('.supplyAddBringer-cb:checked')).map(function (cb) { return cb.value; });
+
+    if (needsPurchase && taggedPeople.length === 0) {
+      errEl.textContent = 'Tag at least one person so these show up on someone\'s shopping list.';
+      errEl.classList.remove('hidden');
+      return;
+    }
+
+    const rows = document.querySelectorAll('#supplyMultiRows .multi-item-row');
+    const validRows = Array.from(rows).filter(function (r) { return r.querySelector('.multi-item-name').value.trim(); });
+    if (validRows.length === 0) {
+      errEl.textContent = 'Enter at least one item name.';
+      errEl.classList.remove('hidden');
+      return;
+    }
+
+    for (const row of validRows) {
+      const name = row.querySelector('.multi-item-name').value.trim();
+      const quantity = parseFloat(row.querySelector('.multi-item-qty').value) || 1;
+      await addDoc(collection(db, 'trips', tripId, 'items'), {
+        type: 'supply', name: name, category: category, quantity: quantity, taggedPeople: taggedPeople,
+        needsPurchase: needsPurchase, purchased: false, packed: false, parentMealId: null, notes: notes,
+        createdAt: serverTimestamp()
+      });
+    }
+
+    window.closeSupplyAddModal();
+    await loadItems();
+    renderAll();
+  };
+
   window.openSupplyModal = function (itemId) {
     editingSupplyId = itemId || null;
     document.getElementById('supplyError').classList.add('hidden');
@@ -1752,6 +1915,70 @@
       `<option value="${o.type}|${o.id}"${o.type === selectedType && o.id === selectedId ? ' selected' : ''}>${escapeHtml(o.label)}</option>`
     ).join('');
   }
+
+  // ---------- Packing: Add Multiple ----------
+  window.addPackingMultiRow = function () { addMultiItemRow('packingMultiRows'); };
+
+  window.updatePackingAddPrivateVisibility = function () {
+    const val = document.getElementById('packingAddAssignTo').value;
+    const isHousehold = val.startsWith('household|');
+    document.getElementById('packingAddPrivateRow').classList.toggle('hidden', isHousehold);
+    if (isHousehold) document.getElementById('packingAddPrivate').checked = false;
+  };
+
+  window.openPackingAddModal = function () {
+    document.getElementById('packingAddError').classList.add('hidden');
+    document.getElementById('packingAddCategory').value = 'Other';
+    document.getElementById('packingAddNotes').value = '';
+    document.getElementById('packingAddPrivate').checked = false;
+
+    const sel = document.getElementById('packingAddAssignTo');
+    const options = [{ type: 'household', id: currentHousehold ? currentHousehold.id : 'none', label: 'Household Packing List' }];
+    myHouseholdAttendees.forEach(function (p) { options.push({ type: 'person', id: p.id, label: p.name }); });
+    sel.innerHTML = options.map(function (o) { return `<option value="${o.type}|${o.id}">${escapeHtml(o.label)}</option>`; }).join('');
+    if (activePackingTarget) sel.value = `${activePackingTarget.type}|${activePackingTarget.id}`;
+    window.updatePackingAddPrivateVisibility();
+
+    document.getElementById('packingMultiRows').innerHTML = '';
+    window.addPackingMultiRow();
+    document.getElementById('packingAddModalOverlay').classList.add('open');
+  };
+  window.closePackingAddModal = function () {
+    document.getElementById('packingAddModalOverlay').classList.remove('open');
+  };
+
+  window.savePackingBatch = async function () {
+    const errEl = document.getElementById('packingAddError');
+    errEl.classList.add('hidden');
+    const category = document.getElementById('packingAddCategory').value;
+    const notes = document.getElementById('packingAddNotes').value.trim();
+    const parts = document.getElementById('packingAddAssignTo').value.split('|');
+    const packingForType = parts[0], packingForId = parts[1];
+    const isPrivate = packingForType === 'person' && document.getElementById('packingAddPrivate').checked;
+
+    const rows = document.querySelectorAll('#packingMultiRows .multi-item-row');
+    const validRows = Array.from(rows).filter(function (r) { return r.querySelector('.multi-item-name').value.trim(); });
+    if (validRows.length === 0) {
+      errEl.textContent = 'Enter at least one item name.';
+      errEl.classList.remove('hidden');
+      return;
+    }
+
+    for (const row of validRows) {
+      const name = row.querySelector('.multi-item-name').value.trim();
+      const quantity = parseFloat(row.querySelector('.multi-item-qty').value) || 1;
+      await addDoc(collection(db, 'trips', tripId, 'items'), {
+        type: 'packing', name: name, category: category, quantity: quantity, notes: notes,
+        packingForType: packingForType, packingForId: packingForId, packed: false, private: isPrivate,
+        taggedPeople: [], needsPurchase: false, purchased: false, parentMealId: null,
+        createdAt: serverTimestamp()
+      });
+    }
+
+    window.closePackingAddModal();
+    await loadItems();
+    renderAll();
+  };
 
   window.openPackingModal = function (itemId) {
     editingPackingId = itemId || null;

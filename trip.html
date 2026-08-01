@@ -48,22 +48,26 @@
   }
   .trip-header-card h2 { margin: 0 0 4px 0; font-size: 26px; color: white; }
   .trip-header-card .dates { color: rgba(255,255,255,0.85); font-size: 14px; }
-  .trip-attendees { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+  .header-section { margin-top: 16px; }
+  .header-section-label {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em;
+    color: rgba(255,255,255,0.7); font-weight: 700; margin-bottom: 6px;
+  }
+  .trip-attendees { display: flex; flex-wrap: wrap; gap: 6px; }
   .attendee-chip {
     background: rgba(255,255,255,0.2); color: white; font-size: 13px;
     padding: 4px 12px; border-radius: 16px; font-weight: 600;
   }
-  .trip-lodging { margin-top: 12px; }
   .trip-lodging a {
     color: white; font-size: 14px; font-weight: 700; text-decoration: none;
     background: rgba(255,255,255,0.2); padding: 6px 14px; border-radius: 8px; display: inline-block;
   }
   .trip-lodging a:hover { background: rgba(255,255,255,0.3); }
   .trip-notes {
-    margin-top: 12px; padding: 10px 14px; background: rgba(255,255,255,0.15);
+    padding: 10px 14px; background: rgba(255,255,255,0.15);
     border-radius: 8px; color: white; font-size: 14px; white-space: pre-wrap;
   }
-  .trip-notes-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: rgba(255,255,255,0.7); font-weight: 700; margin-bottom: 4px; }
+  .header-actions { display: flex; flex-wrap: wrap; gap: 8px; }
   .tabs { display: flex; gap: 8px; margin-bottom: 20px; border-bottom: 1px solid var(--border); overflow-x: auto; white-space: nowrap; }
   .tab-btn { flex-shrink: 0; }
   .tab-btn {
@@ -181,7 +185,7 @@
   .swatch-color { height: 24px; border-radius: 6px; margin-bottom: 4px; }
   .edit-trip-btn {
     background: rgba(255,255,255,0.2); color: white; border: none; border-radius: 8px;
-    padding: 6px 14px; font-size: 13px; font-weight: 700; cursor: pointer; margin-top: 14px;
+    padding: 6px 14px; font-size: 13px; font-weight: 700; cursor: pointer;
   }
   .edit-trip-btn:hover { background: rgba(255,255,255,0.3); }
   .guest-chip {
@@ -227,6 +231,16 @@
     font-weight: 700; font-size: 14px; display: flex; align-items: flex-start; gap: 8px;
   }
   .unassigned-banner a { color: #C0392B; text-decoration: underline; }
+  .category-label.collapsible-header { cursor: pointer; user-select: none; display: flex; align-items: center; gap: 6px; }
+  .category-label.collapsible-header:hover { color: var(--secondary); }
+  .category-label .chevron { font-size: 11px; display: inline-block; width: 10px; }
+  .category-label .category-count { font-weight: 400; color: var(--muted); text-transform: none; letter-spacing: normal; font-size: 12px; }
+  .category-items.hidden { display: none; }
+  .ingredient-toggle {
+    font-size: 13px; color: var(--secondary); font-weight: 700; cursor: pointer;
+    margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border); user-select: none;
+  }
+  .ingredient-toggle:hover { text-decoration: underline; }
 
   .itinerary-print { display: none; }
   .itinerary-print h1 { font-size: 24px; margin-bottom: 2px; }
@@ -281,13 +295,31 @@
     <h2 id="tripName">Loading...</h2>
     <div class="dates" id="tripDates"></div>
     <div class="dates" id="tripDestination" style="margin-top:2px;"></div>
-    <div class="trip-attendees" id="tripAttendees"></div>
-    <div class="trip-lodging" id="tripLodging"></div>
-    <div class="trip-notes hidden" id="tripNotes"></div>
-    <button class="edit-trip-btn" onclick="window.openAddHouseholdModal()">+ Add From My Household</button>
-    <button class="edit-trip-btn hidden" id="editTripBtn" onclick="window.openEditTripModal()">Edit Trip</button>
-    <button class="edit-trip-btn hidden" id="deleteTripBtn" onclick="window.deleteTrip()" style="background:rgba(192,57,43,0.3);">Delete Trip</button>
-    <button class="edit-trip-btn" onclick="window.printItinerary()">🖨️ Print Itinerary</button>
+
+    <div class="header-section">
+      <div class="header-section-label">Travelers</div>
+      <div class="trip-attendees" id="tripAttendees"></div>
+    </div>
+
+    <div class="header-section hidden" id="tripLodgingSection">
+      <div class="header-section-label">Lodging</div>
+      <div class="trip-lodging" id="tripLodging"></div>
+    </div>
+
+    <div class="header-section hidden" id="tripNotesSectionWrap">
+      <div class="header-section-label">Notes</div>
+      <div class="trip-notes" id="tripNotes"></div>
+    </div>
+
+    <div class="header-section">
+      <div class="header-section-label">Trip Actions</div>
+      <div class="header-actions">
+        <button class="edit-trip-btn" onclick="window.openAddHouseholdModal()">+ Add From My Household</button>
+        <button class="edit-trip-btn hidden" id="editTripBtn" onclick="window.openEditTripModal()">Edit Trip</button>
+        <button class="edit-trip-btn hidden" id="deleteTripBtn" onclick="window.deleteTrip()" style="background:rgba(192,57,43,0.3);">Delete Trip</button>
+        <button class="edit-trip-btn" onclick="window.printItinerary()">🖨️ Print Itinerary</button>
+      </div>
+    </div>
   </div>
 
   <div class="tabs">
@@ -533,10 +565,15 @@
     <input type="number" step="0.1" id="packingQty" value="1">
 
     <label>Assign To</label>
-    <select id="packingAssignTo"></select>
+    <select id="packingAssignTo" onchange="window.updatePackingPrivateVisibility()"></select>
 
     <label style="margin-top:10px;">Notes</label>
     <textarea id="packingNotes" placeholder="Optional notes..."></textarea>
+
+    <div class="checkbox-row" id="packingPrivateRow">
+      <input type="checkbox" id="packingPrivate">
+      <label for="packingPrivate">Just for me — don't show this on anyone else's view</label>
+    </div>
 
     <div id="packingError" class="error-text hidden"></div>
 
@@ -717,6 +754,16 @@
   let activePackingTarget = null; // {type:'person', id} or {type:'household', id}
   let packingIncludeSet = new Set(); // personIds folded into the household packing view
   let itineraryFilterSet = new Set(); // personIds to filter the calendar/itinerary by (empty = show everyone)
+  let collapsedCategories = {}; // key `${listKey}:${category}` -> true if collapsed. Absent = expanded (default).
+  let expandedMealIngredients = new Set(); // meal IDs whose ingredient list is currently expanded (collapsed by default)
+
+  window.toggleCategoryCollapse = function (listKey, cat) {
+    const key = listKey + ':' + cat;
+    collapsedCategories[key] = !collapsedCategories[key];
+    if (listKey === 'supplies' || listKey === 'unassignedSupplies') renderSupplies();
+    else if (listKey === 'shopping') renderShoppingList();
+    else if (listKey === 'packing') renderPackingList();
+  };
   let editingPackingId = null;
   let editAttendeeIds = [];       // working copy while the Edit Trip modal is open
   let editAttendeeUids = {};      // personId -> authUid, for building attendeeUids on save
@@ -789,6 +836,7 @@
     renderPackingTabs();
     renderTodoTabs();
     renderAll();
+    window.switchTab(getLastTab());
   });
 
   function renderHeaderExtras() {
@@ -800,19 +848,32 @@
     destEl.textContent = trip.destination ? `📍 ${trip.destination}` : '';
 
     const lodgingEl = document.getElementById('tripLodging');
+    const lodgingSectionEl = document.getElementById('tripLodgingSection');
     if (trip.lodgingLink) {
-      lodgingEl.innerHTML = `<a href="${escapeHtml(trip.lodgingLink)}" target="_blank" rel="noopener">🏠 Lodging</a>`;
+      lodgingEl.innerHTML = `<a href="${escapeHtml(trip.lodgingLink)}" target="_blank" rel="noopener">${escapeHtml(getLodgingLinkLabel(trip.lodgingLink))}</a>`;
+      lodgingSectionEl.classList.remove('hidden');
     } else {
       lodgingEl.innerHTML = '';
+      lodgingSectionEl.classList.add('hidden');
     }
 
     const notesEl = document.getElementById('tripNotes');
+    const notesSectionEl = document.getElementById('tripNotesSectionWrap');
     if (trip.notes) {
-      notesEl.innerHTML = `<div class="trip-notes-label">Notes</div>${escapeHtml(trip.notes)}`;
-      notesEl.classList.remove('hidden');
+      notesEl.textContent = trip.notes;
+      notesSectionEl.classList.remove('hidden');
     } else {
-      notesEl.classList.add('hidden');
-      notesEl.innerHTML = '';
+      notesSectionEl.classList.add('hidden');
+      notesEl.textContent = '';
+    }
+  }
+
+  function getLodgingLinkLabel(url) {
+    try {
+      const hostname = new URL(url).hostname.replace(/^www\./, '');
+      return `${hostname} ↗`;
+    } catch (e) {
+      return 'View Reservation ↗';
     }
   }
 
@@ -861,7 +922,12 @@
   window.switchTab = function (tab) {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
     document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'tab-' + tab));
+    try { localStorage.setItem('tripcrafted_lastTab_' + tripId, tab); } catch (e) { /* storage unavailable — not critical */ }
   };
+
+  function getLastTab() {
+    try { return localStorage.getItem('tripcrafted_lastTab_' + tripId) || 'calendar'; } catch (e) { return 'calendar'; }
+  }
 
   // ---------- Load data ----------
   async function loadMeals() {
@@ -1008,6 +1074,12 @@
     });
   }
 
+  window.toggleMealIngredients = function (mealId) {
+    if (expandedMealIngredients.has(mealId)) expandedMealIngredients.delete(mealId);
+    else expandedMealIngredients.add(mealId);
+    renderMeals();
+  };
+
   function buildMealCard(meal) {
     const card = document.createElement('div');
     card.className = 'card meal-card';
@@ -1019,18 +1091,22 @@
     let bodyHtml = '';
     if (meal.locationType === 'home') {
       const cookNames = (meal.cooks || []).map(function (pid) { return attendeesById[pid] ? attendeesById[pid].name : null; }).filter(Boolean).join(', ');
+      const ingredientsExpanded = expandedMealIngredients.has(meal.id);
       bodyHtml = `
         <div class="meal-slot">${meal.slot} · Home</div>
         <div class="meal-name">${escapeHtml(meal.name)}</div>
         ${cookNames ? `<div class="meal-meta">Cooking: ${escapeHtml(cookNames)}</div>` : ''}
         ${attendingHtml}
-        ${mealIngredients.length ? `<div class="ingredient-list">${mealIngredients.map(function (ing) {
+        ${mealIngredients.length ? `
+          <div class="ingredient-toggle" onclick="window.toggleMealIngredients('${meal.id}')">${ingredientsExpanded ? '▾ Hide' : '▸ Show'} Ingredients (${mealIngredients.length})</div>
+          <div class="ingredient-list${ingredientsExpanded ? '' : ' hidden'}">${mealIngredients.map(function (ing) {
           return `
           <div class="ingredient-row-display">
             <span>${escapeHtml(ing.name)} ${formatQty(ing)}</span>
             ${ing.needsPurchase ? '<span class="tag-chip">To buy</span>' : ''}
           </div>
-        `; }).join('')}</div>` : ''}
+        `; }).join('')}</div>
+        ` : ''}
       `;
     } else {
       bodyHtml = `
@@ -1305,13 +1381,13 @@
 
     listEl.innerHTML = '';
     if (assigned.length === 0) { emptyEl.classList.remove('hidden'); } else { emptyEl.classList.add('hidden'); }
-    renderSupplyGroup(listEl, assigned);
+    renderSupplyGroup(listEl, assigned, 'supplies');
 
     if (unassigned.length > 0) {
       unassignedSectionEl.classList.remove('hidden');
       bannerEl.classList.remove('hidden');
       unassignedListEl.innerHTML = '';
-      renderSupplyGroup(unassignedListEl, unassigned);
+      renderSupplyGroup(unassignedListEl, unassigned, 'unassignedSupplies');
     } else {
       unassignedSectionEl.classList.add('hidden');
       bannerEl.classList.add('hidden');
@@ -1319,16 +1395,23 @@
     }
   }
 
-  function renderSupplyGroup(containerEl, supplyList) {
+  function renderSupplyGroup(containerEl, supplyList, listKey) {
     const byCategory = {};
     supplyList.forEach(function (s) { (byCategory[s.category || 'Other'] = byCategory[s.category || 'Other'] || []).push(s); });
 
     CATEGORIES.forEach(function (cat) {
       if (!byCategory[cat]) return;
       byCategory[cat].sort(function (a, b) { return a.name.localeCompare(b.name); });
+      const collapsed = !!collapsedCategories[listKey + ':' + cat];
       const group = document.createElement('div');
       group.className = 'category-group';
-      group.innerHTML = `<div class="category-label">${cat}</div>`;
+      const header = document.createElement('div');
+      header.className = 'category-label collapsible-header';
+      header.innerHTML = `<span class="chevron">${collapsed ? '▸' : '▾'}</span>${cat}<span class="category-count">(${byCategory[cat].length})</span>`;
+      header.onclick = function () { window.toggleCategoryCollapse(listKey, cat); };
+      group.appendChild(header);
+      const itemsWrap = document.createElement('div');
+      itemsWrap.className = 'category-items' + (collapsed ? ' hidden' : '');
       byCategory[cat].forEach(function (supply) {
         const names = (supply.taggedPeople || []).map(function (pid) { return attendeesById[pid] ? attendeesById[pid].name : null; }).filter(Boolean).join(', ');
         const card = document.createElement('div');
@@ -1357,8 +1440,9 @@
         actions.appendChild(editBtn);
         actions.appendChild(delBtn);
         card.appendChild(actions);
-        group.appendChild(card);
+        itemsWrap.appendChild(card);
       });
+      group.appendChild(itemsWrap);
       containerEl.appendChild(group);
     });
   }
@@ -1463,11 +1547,15 @@
     CATEGORIES.forEach(function (cat) {
       if (!byCategory[cat]) return;
       byCategory[cat].sort(function (a, b) { return a.name.localeCompare(b.name); });
+      const collapsed = !!collapsedCategories['shopping:' + cat];
       const header = document.createElement('div');
-      header.className = 'category-label';
-      header.textContent = cat;
+      header.className = 'category-label collapsible-header';
       header.style.marginTop = '10px';
+      header.innerHTML = `<span class="chevron">${collapsed ? '▸' : '▾'}</span>${cat}<span class="category-count">(${byCategory[cat].length})</span>`;
+      header.onclick = function () { window.toggleCategoryCollapse('shopping', cat); };
       listEl.appendChild(header);
+      const itemsWrap = document.createElement('div');
+      itemsWrap.className = 'category-items' + (collapsed ? ' hidden' : '');
       byCategory[cat].forEach(function (item) {
         const myQty = typeof item.quantity === 'number' ? item.quantity : (item.quantity && item.quantity[currentPerson.id] != null ? item.quantity[currentPerson.id] : '');
         const row = document.createElement('div');
@@ -1478,8 +1566,9 @@
           <span class="shop-item-qty">${myQty !== '' ? 'Qty: ' + myQty : ''}</span>
         `;
         row.querySelector('input').onchange = function (e) { window.togglePurchased(item.id, e.target.checked); };
-        listEl.appendChild(row);
+        itemsWrap.appendChild(row);
       });
+      listEl.appendChild(itemsWrap);
     });
   }
 
@@ -1573,7 +1662,7 @@
       return [...standalone, ...included];
     } else {
       const auto = items.filter(i => (i.type === 'meal-ingredient' || i.type === 'supply') && (i.taggedPeople || []).includes(target.id));
-      const standalone = items.filter(i => i.type === 'packing' && i.packingForType === 'person' && i.packingForId === target.id);
+      const standalone = items.filter(i => i.type === 'packing' && i.packingForType === 'person' && i.packingForId === target.id && (!i.private || target.id === currentPerson.id));
       return [...auto, ...standalone];
     }
   }
@@ -1595,22 +1684,27 @@
     CATEGORIES.forEach(cat => {
       if (!byCategory[cat]) return;
       byCategory[cat].sort((a, b) => a.name.localeCompare(b.name));
+      const collapsed = !!collapsedCategories['packing:' + cat];
       const header = document.createElement('div');
-      header.className = 'category-label';
-      header.textContent = cat;
+      header.className = 'category-label collapsible-header';
       header.style.marginTop = '10px';
+      header.innerHTML = `<span class="chevron">${collapsed ? '▸' : '▾'}</span>${cat}<span class="category-count">(${byCategory[cat].length})</span>`;
+      header.onclick = () => window.toggleCategoryCollapse('packing', cat);
       listEl.appendChild(header);
+      const itemsWrap = document.createElement('div');
+      itemsWrap.className = 'category-items' + (collapsed ? ' hidden' : '');
       byCategory[cat].forEach(item => {
         const isPerson = activePackingTarget.type === 'person';
         const displayQty = isPerson && typeof item.quantity === 'object' && item.quantity[activePackingTarget.id] != null
           ? item.quantity[activePackingTarget.id]
           : (typeof item.quantity === 'number' ? item.quantity : '');
         const sourceTag = item.type === 'meal-ingredient' ? 'from meal' : (item.type === 'supply' ? 'supply' : '');
+        const privateTag = item.private ? ' <span class="auto-tag" title="Only visible to you">🔒 just for me</span>' : '';
         const row = document.createElement('div');
         row.className = 'shop-item pack-item' + (item.packed ? ' packed' : '');
         row.innerHTML = `
           <input type="checkbox" ${item.packed ? 'checked' : ''}>
-          <span class="shop-item-name">${escapeHtml(item.name)}${sourceTag ? `<span class="auto-tag">(${sourceTag})</span>` : ''}</span>
+          <span class="shop-item-name">${escapeHtml(item.name)}${sourceTag ? `<span class="auto-tag">(${sourceTag})</span>` : ''}${privateTag}</span>
           <span class="shop-item-qty">${displayQty !== '' ? 'Qty: ' + displayQty : ''}</span>
         `;
         row.querySelector('input').onchange = (e) => window.togglePacked(item.id, e.target.checked);
@@ -1626,8 +1720,9 @@
           delBtn.onclick = () => window.deletePacking(item.id);
           row.appendChild(delBtn);
         }
-        listEl.appendChild(row);
+        itemsWrap.appendChild(row);
       });
+      listEl.appendChild(itemsWrap);
     });
   }
 
@@ -1670,6 +1765,7 @@
       document.getElementById('packingCategory').value = item.category || 'Other';
       document.getElementById('packingQty').value = typeof item.quantity === 'number' ? item.quantity : 1;
       document.getElementById('packingNotes').value = item.notes || '';
+      document.getElementById('packingPrivate').checked = !!item.private;
       populatePackingAssignOptions(item.packingForType, item.packingForId);
     } else {
       document.getElementById('packingModalTitle').textContent = 'Add Packing Item';
@@ -1678,16 +1774,26 @@
       document.getElementById('packingCategory').value = 'Other';
       document.getElementById('packingQty').value = 1;
       document.getElementById('packingNotes').value = '';
+      document.getElementById('packingPrivate').checked = false;
       const defaultType = activePackingTarget ? activePackingTarget.type : 'household';
       const defaultId = activePackingTarget ? activePackingTarget.id : (currentHousehold ? currentHousehold.id : 'none');
       populatePackingAssignOptions(defaultType, defaultId);
     }
+    window.updatePackingPrivateVisibility();
 
     document.getElementById('packingModalOverlay').classList.add('open');
   };
   window.closePackingModal = function () {
     document.getElementById('packingModalOverlay').classList.remove('open');
     editingPackingId = null;
+  };
+
+  window.updatePackingPrivateVisibility = function () {
+    const val = document.getElementById('packingAssignTo').value || '';
+    const isHousehold = val.startsWith('household|');
+    const row = document.getElementById('packingPrivateRow');
+    row.classList.toggle('hidden', isHousehold);
+    if (isHousehold) document.getElementById('packingPrivate').checked = false;
   };
 
   window.savePacking = async function () {
@@ -1699,10 +1805,11 @@
     const quantity = parseFloat(document.getElementById('packingQty').value) || 1;
     const notes = document.getElementById('packingNotes').value.trim();
     const [packingForType, packingForId] = document.getElementById('packingAssignTo').value.split('|');
+    const isPrivate = packingForType === 'person' && document.getElementById('packingPrivate').checked;
 
     const packingData = {
       type: 'packing', name, category, quantity, notes,
-      packingForType, packingForId, packed: false,
+      packingForType, packingForId, packed: false, private: isPrivate,
       taggedPeople: [], needsPurchase: false, purchased: false, parentMealId: null
     };
 
